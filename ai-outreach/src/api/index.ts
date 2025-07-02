@@ -201,7 +201,7 @@ app.get('/ws-test', (req, res) => {
   res.send('WebSocket server is running.');
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT;
 server.listen(PORT, () => console.log(`API server (with WebSocket) running on port ${PORT}`));
 
 // Export io for use in scripts
