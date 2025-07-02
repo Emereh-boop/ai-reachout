@@ -11,7 +11,8 @@
     "out": "ts-node scripts/runOutreach.ts",
     "gen:prospects": "ts-node scripts/generateProspects.ts",
     "chat": "ts-node scripts/chat.ts",
-    "daily": "ts-node scripts/chat.ts"
+    "daily": "ts-node scripts/chat.ts",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
