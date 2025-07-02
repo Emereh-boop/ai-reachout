@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [prospects, setProspects] = useState([]);
   const [results, setResults] = useState<OutreachResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetch("https://ai-reachout.onrender.com/prospects")
@@ -78,6 +79,62 @@ export default function DashboardPage() {
                   <div className="text-2xl font-bold text-red-500">{results.filter(r => r.status === 'error').length}</div>
                 </div>
               </div>
+            </div>
+          </Card>
+          {/* Prospects Table */}
+          <Card className="p-6 rounded-2xl bg-transparent shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg font-semibold text-black">Prospects</span>
+            </div>
+            {/* Search bar */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, email, or company..."
+                className="w-full p-2 border border-gray-300 rounded-xl text-black bg-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 font-medium text-black">Name</th>
+                    <th className="text-left py-2 px-2 font-medium text-black">Email</th>
+                    <th className="text-left py-2 px-2 font-medium text-black">Company</th>
+                    <th className="text-left py-2 px-2 font-medium text-black">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prospects.filter(p =>
+                    p.name?.toLowerCase().includes(search.toLowerCase()) ||
+                    p.email?.toLowerCase().includes(search.toLowerCase()) ||
+                    p.companySize?.toLowerCase().includes(search.toLowerCase())
+                  ).slice(0, 2).map((prospect, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-2 px-2 text-black">{prospect.name}</td>
+                      <td className="py-2 px-2 text-black">{prospect.email}</td>
+                      <td className="py-2 px-2 text-black">{prospect.companySize}</td>
+                      <td className="py-2 px-2 flex gap-2 items-center">
+                        <button className="text-xs text-red-600 hover:underline" onClick={() => handleRemove(prospect.email)}>Remove</button>
+                        <label className="flex flex-col items-center gap-1 cursor-pointer">
+                          <span className="text-xs text-black">closed</span>
+                          <input type="checkbox" className="accent-indigo-600" checked={!!prospect.reachedOut} onChange={e => handleMarkReachedOut(prospect.email, e.target.checked)} />
+                        </label>
+                      </td>
+                    </tr>
+                  ))}
+                  {prospects.length === 0 && (
+                    <tr><td colSpan={4} className="py-4 text-black text-center">No prospects yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {prospects.length > 2 && (
+                <div className="flex justify-center mt-4">
+                  <button className="text-black hover:underline font-medium text-sm" onClick={() => setShowModal('prospects')}>See all</button>
+                </div>
+              )}
             </div>
           </Card>
           {/* Sent Emails Table */}

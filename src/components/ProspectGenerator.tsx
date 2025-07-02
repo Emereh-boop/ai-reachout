@@ -189,7 +189,14 @@ export function ProspectGenerator() {
             <FileText className="w-5 h-5 text-indigo-600" /> Generated Prospects
           </h3>
           {prospects.map((prospect, index) => (
-            <div key={index} className="border border-gray-200 rounded-2xl p-6 bg-white shadow-sm">
+            <div key={index} className="border border-gray-200 rounded-2xl p-6 bg-white shadow-sm relative">
+              <button
+                className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-xl font-bold focus:outline-none"
+                title="Remove prospect"
+                onClick={() => setProspects(prospects => prospects.filter((_, i) => i !== index))}
+              >
+                &times;
+              </button>
               <div className="flex justify-between items-start mb-2">
                 <h4 className="font-semibold text-lg text-black flex items-center gap-2">
                   <User className="w-5 h-5 text-indigo-600" />{prospect.name}
