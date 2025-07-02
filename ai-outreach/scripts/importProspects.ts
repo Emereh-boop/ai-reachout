@@ -56,10 +56,13 @@ export async function enrichProspects() {
             // Add more fields as needed
           });
         }
-        stringify(enriched, { 
+        stringify(enriched, {
           header: true,
           quoted: true,
-          quoted_empty: true
+          quoted_empty: true,
+          escape: '"',
+          quoted_match: /.*/,
+          record_delimiter: 'auto',
         }, (err, output) => {
           if (err) return reject(err);
           fs.writeFileSync('scripts/enrichedProspects.csv', output);

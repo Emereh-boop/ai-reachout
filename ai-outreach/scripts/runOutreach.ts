@@ -24,6 +24,16 @@ export async function runOutreach() {
       });
     }
     console.log('[DEBUG] Loading prospects.csv...');
+    // Pre-validation: check for malformed CSV before outreach
+    try {
+      const data = fs.readFileSync('scripts/prospects.csv', 'utf8');
+      parse(data, { columns: true, trim: true }, (err, rows) => {
+        if (err) throw new Error('Malformed prospects.csv: ' + err.message);
+      });
+    } catch (e) {
+      console.error('[SEE MORE] CSV validation failed:', e);
+      return reject(e);
+    }
     fs.createReadStream('scripts/prospects.csv')
       .pipe(parse({ columns: true, trim: true }))
       .on('data', row => {

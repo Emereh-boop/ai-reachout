@@ -118,10 +118,13 @@ export async function appendToCSV(prospects: Prospect[], filename: string = 'pro
   const fileExists = fs.existsSync(csvPath);
   
   return new Promise<void>((resolve, reject) => {
-    stringify(prospects, { 
-      header: !fileExists, // Only write header if file doesn't exist
+    stringify(prospects, {
+      header: true,
       quoted: true,
-      quoted_empty: true
+      quoted_empty: true,
+      escape: '"',
+      quoted_match: /.*/,
+      record_delimiter: 'auto',
     }, (err, output) => {
       if (err) return reject(err);
       
