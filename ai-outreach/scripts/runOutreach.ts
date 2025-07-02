@@ -114,7 +114,10 @@ export async function runOutreach() {
         stringify(mergedResults, {
           header: true,
           quoted: true,
-          quoted_empty: true
+          quoted_empty: true,
+          escape: '"',
+          quoted_match: /.*/,
+          record_delimiter: 'auto',
         }, (err, output) => {
           if (err) {
             console.error('[SEE MORE] Error writing results:', err);
