@@ -61,16 +61,16 @@ export async function runOutreach() {
 
             // Interactive approval: emit preview and wait for approve/reject
             const previewData = { subject, body, html, email: prospect.email, name: prospect.name, index: i };
-            const approval = await new Promise(resolve => {
+            const approval: any = await new Promise(resolve => {
               io.emit('outreach:preview', previewData);
-              const approveHandler = (data) => {
+              const approveHandler = (data: any) => {
                 if (data.email === prospect.email && data.index === i) {
                   io.off('outreach:approve', approveHandler);
                   io.off('outreach:reject', rejectHandler);
                   resolve({ approved: true, ...data });
                 }
               };
-              const rejectHandler = (data) => {
+              const rejectHandler = (data: any) => {
                 if (data.email === prospect.email && data.index === i) {
                   io.off('outreach:approve', approveHandler);
                   io.off('outreach:reject', rejectHandler);

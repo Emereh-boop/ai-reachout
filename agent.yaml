@@ -1,0 +1,29 @@
+name: ai-outrich-agent
+description: >
+  Automate personalized email outreach to local businesses using free-tier tools.
+  Steps: import prospects, enrich data, compose emails with OpenAI, send via Gmail SMTP.
+
+project_directories:
+  - /scripts
+  - /services
+  - /
+
+context_files:
+  - PROJECT_CONTEXT.md
+
+priority_files:
+  - /scripts/importProspects.ts
+  - /services/emailComposer.ts
+  - /services/emailSender.ts
+  - /scripts/runOutreach.ts
+
+rules:
+  - Use only free-tier or built-in tools (Gmail SMTP, OpenAI free credits, Node.js fetch)
+  - Preserve logic in existing scripts; refactor only to match context
+  - Document all modules in README.md
+  - Read and update PROJECT_CONTEXT.md for overall goals.
+  - After creating or modifying any module, update README.md with instructions.
+  - Keep code in TypeScript, use async/await.
+  - Do not add paid dependencies or services.
+  - Limit to 20 emails per execution.
+
