@@ -1,0 +1,48 @@
+{
+  "name": "ai-outreach",
+  "version": "1.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node src/api/index.ts",
+    "go": "ts-node src/api/index.ts",
+    "imp": "ts-node scripts/importProspects.ts",
+    "out": "ts-node scripts/runOutreach.ts",
+    "gen:prospects": "ts-node scripts/generateProspects.ts",
+    "chat": "ts-node scripts/chat.ts",
+    "daily": "ts-node scripts/chat.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@faker-js/faker": "^9.8.0",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.10.0",
+    "cheerio": "^1.1.0",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "csv-stringify": "^6.5.2",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "lucide-react": "^0.525.0",
+    "multer": "^2.0.1",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.4",
+    "openai": "^5.8.2",
+    "playwright": "^1.53.2",
+    "puppeteer": "^24.11.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^24.0.7",
+    "@types/nodemailer": "^6.4.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
