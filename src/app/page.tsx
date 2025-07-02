@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from "react";
-import { Card } from "../components/ui";
+import { Card, Modal } from "../components/ui";
 import { ProspectGenerator } from "../components/ProspectGenerator";
 import { OutreachButton } from "../components/OutreachButton";
+import { Calendar } from 'lucide-react';
 
 interface OutreachResult {
   email: string;
@@ -13,17 +14,33 @@ interface OutreachResult {
   confirmed?: string;
 }
 
+// Define Prospect type
+interface Prospect {
+  name: string;
+  email: string;
+  companySize: string;
+  reachedOut?: boolean;
+  [key: string]: any;
+}
+
 export default function DashboardPage() {
-  const [prospects, setProspects] = useState([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
   const [results, setResults] = useState<OutreachResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState<null | 'emailed' | 'prospects'>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [pendingRemoveEmail, setPendingRemoveEmail] = useState<string | null>(null);
+  const [pendingMarkEmail, setPendingMarkEmail] = useState<string | null>(null);
+  const [pendingMarkValue, setPendingMarkValue] = useState<boolean>(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetch("https://ai-reachout.onrender.com/prospects")
       .then((res) => res.json())
       .then((data) => {
-        setProspects(data);
+        setProspects(Array.isArray(data) ? data : []);
         setLoading(false);
       });
     fetch("https://ai-reachout.onrender.com/results")
@@ -39,6 +56,59 @@ export default function DashboardPage() {
       return namePart.replace(/\./g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     }
     return "-";
+  };
+
+  // Handler for remove with confirmation (for emailed and prospects)
+  const handleRemove = (email: string) => {
+    setConfirmText('Are you sure you want to remove this prospect?');
+    setPendingRemoveEmail(email);
+    setShowConfirm(true);
+    setConfirmAction(() => async () => {
+      try {
+        const res = await fetch('https://ai-reachout.onrender.com/prospects', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.status === 'removed') {
+          setProspects(data.prospects);
+        }
+      } catch (e) {
+        console.error("error", e)
+      } finally {
+        setShowConfirm(false);
+        setPendingRemoveEmail(null);
+      }
+    });
+  };
+
+  // Handler for mark as reached out (for prospects)
+  const handleMarkReachedOut = (email: string, value: boolean) => {
+    setConfirmText('Mark this connection as already closed?');
+    setPendingMarkEmail(email);
+    setPendingMarkValue(value);
+    setShowConfirm(true);
+    setConfirmAction(() => async () => {
+      if (!pendingMarkEmail) return;
+      try {
+        const res = await fetch('https://ai-reachout.onrender.com/prospects', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingMarkEmail, reachedOut: pendingMarkValue })
+        });
+        const data = await res.json();
+        if (data.status === 'updated') {
+          setProspects(data.prospects);
+        }
+      } catch (e) {
+        // Optionally consshow error
+        console.error("error", e)
+      } finally {
+        setShowConfirm(false);
+        setPendingMarkEmail(null);
+      }
+    });
   };
 
   return (
@@ -81,6 +151,81 @@ export default function DashboardPage() {
               </div>
             </div>
           </Card>
+          {/* Sent Emails Table */}
+          {/* <Card className="p-6 rounded-2xl bg-transparent shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg font-semibold text-black">People Emailed</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 font-medium text-black"> Name</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Email</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Date</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.filter(r => r.status === 'sent').slice(0, 2).map((result, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-2 px-2 text-black">{getName(result)}</td>
+                      <td className="py-2 px-2 text-black">{result.email}</td>
+                      <td className="py-2 px-2 text-black">{new Date(result.timestamp).toLocaleString()}</td>
+                      <td className="py-2 px-2">
+                        {result.confirmed === 'true' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">Confirmed</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {results.filter(r => r.status === 'sent').length === 0 && (
+                    <tr><td colSpan={4} className="py-4 text-black text-center">No emails sent yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {results.filter(r => r.status === 'sent').length > 2 && (
+                <div className="flex justify-center mt-4">
+                  <button className="text-black hover:underline font-medium text-sm" onClick={() => setShowModal('emailed')}>See all</button>
+                </div>
+              )}
+            </div>
+          </Card> */}
+          {/* Confirmed Prospects Table */}
+          {/* <Card className="p-6 rounded-2xl bg-transparent shadow-2xl mt">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg font-semibold text-green-700">Confirmed/Interested Prospects</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 font-medium text-black"> Name</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Email</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Date Confirmed</th>
+                    <th className="text-left py-2 px-2 font-medium text-black"> Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.filter(r => r.confirmed === 'true').map((result, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-2 px-2 text-black">{getName(result)}</td>
+                      <td className="py-2 px-2 text-black">{result.email}</td>
+                      <td className="py-2 px-2 text-black">{result.timestamp ? new Date(result.timestamp).toLocaleString() : '-'}</td>
+                      <td className="py-2 px-2">
+                        <button className="px-3 py-1 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">Schedule Meeting</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {results.filter(r => r.confirmed === 'true').length === 0 && (
+                    <tr><td colSpan={4} className="py-4 text-black text-center">No confirmed prospects yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card> */}
           {/* Prospects Table */}
           <Card className="p-6 rounded-2xl bg-transparent shadow-2xl">
             <div className="flex items-center gap-2 mb-4">
@@ -135,85 +280,82 @@ export default function DashboardPage() {
                   <button className="text-black hover:underline font-medium text-sm" onClick={() => setShowModal('prospects')}>See all</button>
                 </div>
               )}
-            </div>
-          </Card>
-          {/* Sent Emails Table */}
-          <Card className="p-6 rounded-2xl bg-transparent shadow-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg font-semibold text-black">People Emailed</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-2 font-medium text-black"> Name</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Email</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Date</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.filter(r => r.status === 'sent').slice(0, 2).map((result, idx) => (
-                    <tr key={idx} className="border-b last:border-0">
-                      <td className="py-2 px-2 text-black">{getName(result)}</td>
-                      <td className="py-2 px-2 text-black">{result.email}</td>
-                      <td className="py-2 px-2 text-black">{new Date(result.timestamp).toLocaleString()}</td>
-                      <td className="py-2 px-2">
-                        {result.confirmed === 'true' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">Confirmed</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">Pending</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {results.filter(r => r.status === 'sent').length === 0 && (
-                    <tr><td colSpan={4} className="py-4 text-black text-center">No emails sent yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
-              {results.filter(r => r.status === 'sent').length > 2 && (
-                <div className="flex justify-center mt-4">
-                  <button className="text-black hover:underline font-medium text-sm">See all</button>
-                </div>
-              )}
-            </div>
-          </Card>
-          {/* Confirmed Prospects Table */}
-          <Card className="p-6 rounded-2xl bg-transparent shadow-2xl mt">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg font-semibold text-green-700">Confirmed/Interested Prospects</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-2 font-medium text-black"> Name</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Email</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Date Confirmed</th>
-                    <th className="text-left py-2 px-2 font-medium text-black"> Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.filter(r => r.confirmed === 'true').map((result, idx) => (
-                    <tr key={idx} className="border-b last:border-0">
-                      <td className="py-2 px-2 text-black">{getName(result)}</td>
-                      <td className="py-2 px-2 text-black">{result.email}</td>
-                      <td className="py-2 px-2 text-black">{result.timestamp ? new Date(result.timestamp).toLocaleString() : '-'}</td>
-                      <td className="py-2 px-2">
-                        <button className="px-3 py-1 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">Schedule Meeting</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {results.filter(r => r.confirmed === 'true').length === 0 && (
-                    <tr><td colSpan={4} className="py-4 text-black text-center">No confirmed prospects yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          </div>
+        </Card>
         </div>
       </div>
+      {/* See All Modal for Emailed */}
+      <Modal open={showModal === 'emailed'} onClose={() => setShowModal(null)} title="All People Emailed">
+        <div className="overflow-x-auto max-h-[60vh]">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 px-2 font-medium text-black"> Name</th>
+                <th className="text-left py-2 px-2 font-medium text-black"> Email</th>
+                <th className="text-left py-2 px-2 font-medium text-black"> Date</th>
+                <th className="text-left py-2 px-2 font-medium text-black"> Status</th>
+                <th className="text-left py-2 px-2 font-medium text-black"> Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.filter(r => r.status === 'sent').map((result, idx) => (
+                <tr key={idx} className="border-b last:border-0">
+                  <td className="py-2 px-2 text-black">{getName(result)}</td>
+                  <td className="py-2 px-2 text-black">{result.email}</td>
+                  <td className="py-2 px-2 text-black">{new Date(result.timestamp).toLocaleString()}</td>
+                  <td className="py-2 px-2">
+                    {result.confirmed === 'true' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">Confirmed</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">Pending</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2 flex gap-2">
+                    <button className="text-xs text-indigo-600 hover:bg-indigo-100 rounded-full p-2" title="Schedule Meeting">
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+      {/* See All Modal for Prospects */}
+      <Modal open={showModal === 'prospects'} onClose={() => setShowModal(null)} title="All Prospects">
+        <div className="overflow-x-auto max-h-[60vh]">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 px-2 font-medium text-black">Name</th>
+                <th className="text-left py-2 px-2 font-medium text-black">Email</th>
+                <th className="text-left py-2 px-2 font-medium text-black">Company</th>
+                <th className="text-left py-2 px-2 font-medium text-black">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prospects.map((prospect, idx) => (
+                <tr key={idx} className="border-b last:border-0">
+                  <td className="py-2 px-2 text-black">{prospect.name}</td>
+                  <td className="py-2 px-2 text-black">{prospect.email}</td>
+                  <td className="py-2 px-2 text-black">{prospect.companySize}</td>
+                  <td className="py-2 px-2 flex gap-2 items-center">
+                    <button className="text-xs text-red-600 hover:underline" onClick={() => handleRemove(prospect.email)}>Remove</button>
+                    <label className="flex flex-col items-center gap-1 cursor-pointer">
+                      <span className="text-xs text-black">closed</span>
+                      <input type="checkbox" className="accent-indigo-600" checked={!!prospect.reachedOut} onChange={e => handleMarkReachedOut(prospect.email, e.target.checked)} />
+                    </label>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+      {/* Confirmation Dialog */}
+      <Modal open={showConfirm} onClose={() => setShowConfirm(false)} title="Confirm Action" variant="confirmation" confirmText="Yes, Confirm" onConfirm={confirmAction || (() => setShowConfirm(false))}>
+        <div className="text-black text-base">{confirmText}</div>
+      </Modal>
     </main>
   );
 } 

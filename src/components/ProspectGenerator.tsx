@@ -24,7 +24,8 @@ export function ProspectGenerator() {
     industry: 'Technology',
     companySize: '1-10',
     intent: 'growth',
-    additional: ''
+    additional: '',
+    count: 10,
   });
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +58,7 @@ export function ProspectGenerator() {
         setProspects(data.prospects);
         setMessage(data.message);
       } else {
-        setMessage(data.message || 'Failed to generate prospects');
+        setMessage(data.message || 'Failed to Find prospects');
       }
     } catch (error) {
       setMessage('Error connecting to server');
@@ -142,9 +143,25 @@ export function ProspectGenerator() {
           </select>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium mb-2 text-indigo-700 flex items-center gap-1">
+            <Plus className="w-4 h-4 text-indigo-600" /> Number of Prospects
+          </label>
+          <input
+            type="number"
+            name="count"
+            min={1}
+            max={20}
+            value={formData.count}
+            onChange={handleInputChange}
+            className="w-full p-3 border border-gray-300 rounded-xl text-black bg-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            placeholder="Number to generate"
+          />
+        </div>
+
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-sm font-medium mb-2 text-indigo-700 flex items-center gap-1">
-            <Plus className="w-4 h-4 text-indigo-600" /> Additional Criteria
+            <Plus className="w-4 h-4 text-indigo-600" /> Additional Instructions
           </label>
           <input
             type="text"
@@ -152,7 +169,7 @@ export function ProspectGenerator() {
             value={formData.additional}
             onChange={handleInputChange}
             className="w-full p-3 border border-gray-300 rounded-xl text-black bg-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Optional: specific requirements, contact preferences, etc."
+            placeholder="Optional: instructions for the AI (e.g., only schools with STEM focus)"
           />
         </div>
       </div>
@@ -160,15 +177,15 @@ export function ProspectGenerator() {
       <Button 
         onClick={generateProspects} 
         disabled={loading}
-        className="w-full mb-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl"
+        className="w-1/4 mb- 6 bg-indigo-600 hover:bg-indigo-700 text-white font-normal py-3 rounded-xl"
       >
         {loading ? (
           <span className="flex items-center gap-2">
-            <Loader2 className="animate-spin w-5 h-5" /> Generating Prospects...
+            <Loader2 className="animate-spin w-5 h-5" /> Pinging Prospects...
           </span>
         ) : (
           <span className="flex items-center gap-2">
-            <Share2 className="w-5 h-5" /> Generate 10 Prospects
+            <Share2 className="w-5 h-5" /> Find Prospects
           </span>
         )}
       </Button>
