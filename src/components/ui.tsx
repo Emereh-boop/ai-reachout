@@ -4,7 +4,7 @@
 export { Card } from "./card";
 export { Switch } from "./switch";
 export { Badge } from "./badge";
-export { Avatar } from "./avatar";
+// export { Avatar } from "./avatar";
 export { Button } from "./button";
 
 // Reusable Modal component
@@ -40,4 +40,28 @@ export function Modal({ open, onClose, title, children, variant = 'default', con
       </div>
     </div>
   );
-} 
+}
+
+// const function Card({ className = "", children }) {
+//   return <div className={`bg-white rounded-3xl shadow-xl ${className}`}>{children}</div>;
+// }
+
+// export function Switch({ checked }) {
+//   return <input type="checkbox" checked={checked} readOnly className="toggle toggle-primary" />;
+// }
+
+// export function Badge({ variant = "default", children }) {
+//   const color = variant === "success" ? "bg-green-100 text-green-800" : variant === "outline" ? "border border-gray-300 text-gray-600" : "bg-gray-100 text-gray-800";
+//   return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{children}</span>;
+// }
+
+// export function Avatar({ src, alt, className = "" }) {
+//   return <img src={src} alt={alt} className={`rounded-full ${className}`} />;
+// }
+
+// export function Button({ variant = "default", size = "md", children }) {
+//   const base = "px-4 py-2 rounded-full font-semibold focus:outline-none";
+//   const color = variant === "outline" ? "border border-gray-300 bg-white text-gray-700" : "bg-blue-600 text-white";
+//   const sz = size === "sm" ? "text-xs" : size === "lg" ? "text-lg" : "text-sm";
+//   return <button className={`${base} ${color} ${sz}`}>{children}</button>;
+// } 
