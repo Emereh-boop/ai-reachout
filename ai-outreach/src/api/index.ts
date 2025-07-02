@@ -11,7 +11,14 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 const app = express();
-app.use(cors({ origin: ["http://localhost:3000", "https://ai-reachout-ui.onrender.com"], credentials: true }));
+app.use(cors({ 
+  origin: [
+    "http://localhost:3000", 
+    "https://ai-reachout-ui.onrender.com",
+    "http://192.168.1.149:3000"
+  ], 
+  credentials: true 
+}));
 app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 
