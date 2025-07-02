@@ -201,8 +201,12 @@ app.get('/ws-test', (req, res) => {
   res.send('WebSocket server is running.');
 });
 
-const PORT = process.env.PORT;
-server.listen(PORT, () => console.log(`API server (with WebSocket) running on port ${PORT}`));
+const PORT = process.env.PORT || 2003;
 
-// Export io for use in scripts
+// Only start the server if this file is run directly
+if (require.main === module) {
+  server.listen(PORT, () => console.log(`API server (with WebSocket) running on port ${PORT}`));
+}
+
+// Export io for use in scripts, but don't start the server on import
 export { io }; 
