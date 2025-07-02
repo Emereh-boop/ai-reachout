@@ -4,6 +4,9 @@ import { stringify } from 'csv-stringify';
 import { composeEmail } from '../services/emailComposer';
 import { sendEmail } from '../services/emailSender';
 import crypto from 'crypto';
+import dotenv from 'dotenv';
+import { io } from '../src/api/index';
+dotenv.config();
 
 function daysBetween(date1: Date, date2: Date) {
   return Math.abs((date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
@@ -49,17 +52,52 @@ export async function runOutreach() {
         for (const [i, prospect] of prospectsWithEmail.slice(0, 20).entries()) {
           let subject = '', body = '', html = '', status = '', error = '';
           try {
+            io.emit('outreach:prepare', { name: prospect.name, email: prospect.email, index: i });
             // Generate a unique confirmation token
             const token = crypto.randomBytes(16).toString('hex');
-            const confirmationUrl = `https://yourdomain.com/api/confirm-interest?email=${encodeURIComponent(prospect.email)}&token=${token}`;
+            const backendUrl = process.env.RENDER_BACKEND_URL || 'https://ai-reachout.onrender.com';
+            const confirmationUrl = `${backendUrl}/api/confirm-interest?email=${encodeURIComponent(prospect.email)}&token=${token}`;
             ({ subject, body, html } = await composeEmail({ ...prospect, confirmationUrl }));
+
+            // Interactive approval: emit preview and wait for approve/reject
+            const previewData = { subject, body, html, email: prospect.email, name: prospect.name, index: i };
+            const approval = await new Promise(resolve => {
+              io.emit('outreach:preview', previewData);
+              const approveHandler = (data) => {
+                if (data.email === prospect.email && data.index === i) {
+                  io.off('outreach:approve', approveHandler);
+                  io.off('outreach:reject', rejectHandler);
+                  resolve({ approved: true, ...data });
+                }
+              };
+              const rejectHandler = (data) => {
+                if (data.email === prospect.email && data.index === i) {
+                  io.off('outreach:approve', approveHandler);
+                  io.off('outreach:reject', rejectHandler);
+                  resolve({ approved: false });
+                }
+              };
+              io.on('outreach:approve', approveHandler);
+              io.on('outreach:reject', rejectHandler);
+            });
+            if (!approval.approved) {
+              io.emit('outreach:skipped', { name: prospect.name, email: prospect.email, index: i });
+              continue;
+            }
+            // Use possibly edited content
+            subject = approval.subject;
+            body = approval.body;
+            html = approval.html;
+
             const sendRes = await sendEmail({ to: prospect.email, subject, body, html });
             status = sendRes.status;
             if (sendRes.error) error = String(sendRes.error);
+            io.emit('outreach:sent', { name: prospect.name, email: prospect.email, status, error, index: i });
             newResults.push({ email: prospect.email, status, timestamp: new Date().toISOString(), error, confirmed: 'false', token });
           } catch (e) {
             status = 'error';
             error = String(e);
+            io.emit('outreach:failed', { name: prospect.name, email: prospect.email, error, index: i });
             newResults.push({ email: prospect.email, status, timestamp: new Date().toISOString(), error, confirmed: 'false', token: '' });
           }
         }

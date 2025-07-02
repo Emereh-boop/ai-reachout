@@ -7,11 +7,23 @@ import { stringify } from 'csv-stringify';
 import { enrichProspects } from '../../scripts/importProspects';
 import { runOutreach } from '../../scripts/runOutreach';
 import { generateProspectsWithAI, enrichProspects as enrichProspectsFromScript, appendToCSV } from '../../scripts/generateProspects';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: ["http://localhost:3000", "https://ai-reachout-ui.onrender.com"], credentials: true }));
 app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
+
+// Create HTTP server and attach socket.io
+const server = http.createServer(app);
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: ["http://localhost:3000", "https://ai-reachout-ui.onrender.com"],
+    methods: ["GET", "POST", "DELETE", "PATCH"],
+    credentials: true
+  }
+});
 
 app.get('/', (req, res) => res.send('Unified API is running'));
 
@@ -141,5 +153,56 @@ app.get('/api/confirm-interest', (req, res) => {
     });
 });
 
+// DELETE /prospects - remove a prospect by email
+app.delete('/prospects', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!fs.existsSync('scripts/prospects.csv')) return res.status(404).json({ error: 'No prospects file found' });
+  const prospects: any[] = [];
+  fs.createReadStream('scripts/prospects.csv')
+    .pipe(parse({ columns: true, trim: true }))
+    .on('data', row => prospects.push(row))
+    .on('end', () => {
+      const filtered = prospects.filter(p => p.email !== email);
+      stringify(filtered, { header: true, quoted: true, quoted_empty: true }, (err, output) => {
+        if (err) return res.status(500).json({ error: String(err) });
+        fs.writeFileSync('scripts/prospects.csv', output);
+        res.json({ status: 'removed', prospects: filtered });
+      });
+    })
+    .on('error', err => res.status(500).json({ error: String(err) }));
+});
+
+// PATCH /prospects - update a prospect's reachedOut/closed status by email
+app.patch('/prospects', (req, res) => {
+  const { email, reachedOut } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (typeof reachedOut === 'undefined') return res.status(400).json({ error: 'reachedOut is required' });
+  if (!fs.existsSync('scripts/prospects.csv')) return res.status(404).json({ error: 'No prospects file found' });
+  const prospects: any[] = [];
+  fs.createReadStream('scripts/prospects.csv')
+    .pipe(parse({ columns: true, trim: true }))
+    .on('data', row => prospects.push(row))
+    .on('end', () => {
+      const idx = prospects.findIndex(p => p.email === email);
+      if (idx === -1) return res.status(404).json({ error: 'Prospect not found' });
+      prospects[idx].reachedOut = String(reachedOut);
+      stringify(prospects, { header: true, quoted: true, quoted_empty: true }, (err, output) => {
+        if (err) return res.status(500).json({ error: String(err) });
+        fs.writeFileSync('scripts/prospects.csv', output);
+        res.json({ status: 'updated', prospects });
+      });
+    })
+    .on('error', err => res.status(500).json({ error: String(err) }));
+});
+
+// WebSocket test endpoint
+app.get('/ws-test', (req, res) => {
+  res.send('WebSocket server is running.');
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`API server running on port ${PORT}`)); 
+server.listen(PORT, () => console.log(`API server (with WebSocket) running on port ${PORT}`));
+
+// Export io for use in scripts
+export { io }; 

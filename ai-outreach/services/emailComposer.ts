@@ -23,9 +23,9 @@ export async function composeEmail({ name, website, title, description, category
   const subject = subjectMatch ? subjectMatch[1].trim() : 'Follow up';
   const body = bodyMatch ? bodyMatch[1].trim() : text;
 
-  // Add confirmation link
-  const confirmationText = `\n\nIf you're interested, please confirm here: ${confirmationUrl}`;
-  const confirmationHtml = `<br><br><a href="${confirmationUrl}" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">I'm Interested</a>`;
+  // Add confirmation link and CTA
+  const confirmationText = `\n\n---\nIf you're interested, please confirm by clicking the link below:\n${confirmationUrl}\n`;
+  const confirmationHtml = `<br><br><hr><p style='font-size:1.1em;'>If you're interested, please confirm by clicking the button below:</p><a href="${confirmationUrl}" style="display:inline-block;padding:12px 28px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:1.1em;">I'm Interested</a>`;
 
   return { 
     subject, 
