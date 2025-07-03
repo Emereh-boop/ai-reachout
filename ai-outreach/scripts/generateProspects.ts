@@ -147,7 +147,7 @@ export async function appendToCSV(prospects: Prospect[], filename: string = 'pro
 export async function generateProspectsWithAI(criteria: any): Promise<Prospect[]> {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   
-  const prompt = `Generate 10 real businesses in ${criteria.location}, Nigeria that match these criteria:
+  const prompt = `Generate real businesses in ${criteria.location}, that match these criteria:
 
 Industry Focus: ${criteria.industry}
 Company Size Preference: ${criteria.companySize}
@@ -159,6 +159,7 @@ STRICT CONTACT REQUIREMENT: For each business, you MUST provide at least one rea
 - OR a real, public phone number
 - OR a real, public social media handle (LinkedIn, Instagram, Facebook, Twitter, etc.)
 If you cannot find a real contact method, SKIP that business.
+You must test the contect method and ensure they are reliable.
 
 For each business, provide:
 1. Company name (real, existing business)
@@ -239,7 +240,7 @@ function displayProspects(prospects: Prospect[]) {
 // Main chat function
 export async function chatWithUser() {
   console.log('🤖 Welcome to Daily Prospect Generator!');
-  console.log('Let me help you find 10 prospects for today.\n');
+  console.log('Let me help you find prospects for today.\n');
   
   // Get user criteria
   const location = await askQuestion('📍 Location (e.g., Lagos, Abuja, Enugu): ');
