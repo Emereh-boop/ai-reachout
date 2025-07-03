@@ -12,11 +12,7 @@ import { Server as SocketIOServer } from 'socket.io';
 
 const app = express();
 app.use(cors({ 
-  origin: [
-    "http://localhost:3000", 
-    "https://ai-reachout-ui.onrender.com",
-    "http://192.168.1.149:3000"
-  ], 
+  origin: '*',
   credentials: true 
 }));
 app.use(express.json());
@@ -78,10 +74,10 @@ app.post('/generate-prospects', async (req, res) => {
     const { location, industry, companySize, intent, additional } = req.body;
     
     const criteria = {
-      location: location || 'Lagos',
+      location: location || 'Nigeria',
       industry: industry || 'Technology',
       companySize: companySize || '1-10',
-      intent: intent || 'growth',
+      intent: intent || 'optimization',
       additional: additional || 'None'
     };
     
@@ -206,6 +202,75 @@ app.patch('/prospects', (req, res) => {
 // WebSocket test endpoint
 app.get('/ws-test', (req, res) => {
   res.send('WebSocket server is running.');
+});
+
+// GET /persons - return all persons from persons.csv
+app.get('/persons', (req, res) => {
+  if (!fs.existsSync('scripts/persons.csv')) return res.json([]);
+  const persons: any[] = [];
+  fs.createReadStream('scripts/persons.csv')
+    .pipe(parse({ columns: true, trim: true }))
+    .on('data', row => persons.push(row))
+    .on('end', () => res.json(persons))
+    .on('error', err => res.status(500).json({ error: String(err) }));
+});
+
+// POST /persons - upload a new persons.csv
+app.post('/persons', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  fs.renameSync(req.file.path, 'scripts/persons.csv');
+  res.json({ status: 'ok' });
+});
+
+// DELETE /persons - remove a person by email
+app.delete('/persons', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!fs.existsSync('scripts/persons.csv')) return res.status(404).json({ error: 'No persons file found' });
+  const persons: any[] = [];
+  fs.createReadStream('scripts/persons.csv')
+    .pipe(parse({ columns: true, trim: true }))
+    .on('data', row => persons.push(row))
+    .on('end', () => {
+      const filtered = persons.filter(p => p.email !== email);
+      stringify(filtered, { header: true, quoted: true, quoted_empty: true }, (err, output) => {
+        if (err) return res.status(500).json({ error: String(err) });
+        fs.writeFileSync('scripts/persons.csv', output);
+        res.json({ status: 'removed', persons: filtered });
+      });
+    })
+    .on('error', err => res.status(500).json({ error: String(err) }));
+});
+
+// PATCH /persons - update a person's reachedOut/closed status by email
+app.patch('/persons', (req, res) => {
+  const { email, reachedOut } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (typeof reachedOut === 'undefined') return res.status(400).json({ error: 'reachedOut is required' });
+  if (!fs.existsSync('scripts/persons.csv')) return res.status(404).json({ error: 'No persons file found' });
+  const persons: any[] = [];
+  fs.createReadStream('scripts/persons.csv')
+    .pipe(parse({ columns: true, trim: true }))
+    .on('data', row => persons.push(row))
+    .on('end', () => {
+      const idx = persons.findIndex(p => p.email === email);
+      if (idx === -1) return res.status(404).json({ error: 'Person not found' });
+      persons[idx].reachedOut = String(reachedOut);
+      stringify(persons, { header: true, quoted: true, quoted_empty: true }, (err, output) => {
+        if (err) return res.status(500).json({ error: String(err) });
+        fs.writeFileSync('scripts/persons.csv', output);
+        res.json({ status: 'updated', persons });
+      });
+    })
+    .on('error', err => res.status(500).json({ error: String(err) }));
+});
+
+// POST /chat - freeform AI chat (placeholder response for now)
+app.post('/chat', async (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+  // TODO: Replace with real AI logic
+  res.json({ reply: `Echo: ${message}` });
 });
 
 const PORT = process.env.PORT || 2003;
