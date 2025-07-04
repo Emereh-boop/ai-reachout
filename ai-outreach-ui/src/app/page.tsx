@@ -14,7 +14,8 @@ import {
 import logo from '../../public/beam-no-bg.png'
 import Image from 'next/image';
 
-const API_BASE = "https://ai-reachout.onrender.com";
+// Set API_BASE from env or default to local backend
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3002";
 
 const TABS = [
   { key: "chat", label: "Chat" },
@@ -45,7 +46,7 @@ function SlidingDotsLoader() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState("chat");
   const [messages, setMessages] = useState([
-    { sender: "Beamer", text: "Hey, I’m Beamer. Let’s light the way. How can I assist?" }
+    { sender: "Beamer", text: "Hey, I'm Beamer. Let's light the way. How can I assist?" }
   ]);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
