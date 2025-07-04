@@ -45,9 +45,7 @@ function SlidingDotsLoader() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState("chat");
   const [messages, setMessages] = useState([
-    { sender: "Beamer", text: "Welcome to AI Beam Terminal!" },
-    { sender: "user", text: "Hello!" },
-    { sender: "Beamer", text: "How can I assist you today?" },
+    { sender: "Beamer", text: "Hey, I’m Beamer. Let’s light the way. How can I assist?" }
   ]);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -325,17 +323,12 @@ export default function Home() {
         >
           {activeTab === "chat" && (
             <>
-              <div className="terminal-chat" id="chat-area">
+              <div className="terminal-chat" id="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
                 {messages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`terminal-msg ${
-                      msg.sender === "user" ? "user-msg" : "ai-msg"
-                    }`}
+                    className={`chat-bubble ${msg.sender === "user" ? "user-bubble" : "ai-bubble"}`}
                   >
-                    <span className="sender">
-                      {msg.sender === "user" ? ">" : "Beamer:"}
-                    </span>{" "}
                     {msg.text}
                   </div>
                 ))}

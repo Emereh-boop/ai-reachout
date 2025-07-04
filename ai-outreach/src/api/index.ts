@@ -268,6 +268,14 @@ app.patch('/persons', (req, res) => {
     .on('error', err => res.status(500).json({ error: String(err) }));
 });
 
+// Add CORS middleware for https://mojtabai.vercel.app/
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://mojtabai.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  next();
+});
+
 // POST /chat - freeform AI chat (Gemini-powered, context-aware)
 app.post('/chat', async (req, res) => {
   const { messages } = req.body;
@@ -277,11 +285,11 @@ app.post('/chat', async (req, res) => {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    // System prompt to define the assistant's role
+    // System prompt as the first 'model' message
     const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. Ask the user for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria. Once you have all the info, generate a list of real businesses with public contact info. Do not answer questions outside this scope. If the user asks for anything unrelated, politely refuse and remind them of your purpose.`;
-    // Build the conversation context in Gemini's expected format
+    // Build the conversation context with only 'user' and 'model' roles
     const context = [
-      { role: 'system', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: systemPrompt }] },
       ...messages.map(m => ({
         role: m.sender === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]

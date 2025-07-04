@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 :root {
-  --background: #ffeac6;
+  --background: #fff3df;
   --foreground: #000000;
   --accent: #93dceb;
   --accent-secondary: #ffeac6;
@@ -12,6 +12,7 @@
 
 body, html {
   background: var(--background);
+  
   color: var(--foreground);
   font-family: 'VT323', 'IBM Plex Mono', 'Fira Mono', monospace;
   min-height: 100vh;
@@ -70,7 +71,7 @@ a {
   padding: 1.2rem 1.5rem;
   overflow-y: auto;
   font-size: 1rem;
-  background: var(--accent-secondary);
+  background: var(--background);
 }
 
 .terminal-msg {
@@ -326,3 +327,50 @@ a {
   padding: 8px 16px;
   font-size: 1rem;
 }
+
+/* WhatsApp-style chat bubbles */
+.chat-bubble {
+  position: relative;
+  display: inline-block;
+  padding: 12px 16px;
+  margin: 8px 0;
+  max-width: 70%;
+  border-radius: 18px;
+  font-size: 1.1em;
+  word-break: break-word;
+  box-shadow: 0 2px 8px #519FB033;
+}
+.user-bubble {
+  background: var(--accent);
+  color: var(--foreground);
+  align-self: flex-end;
+  margin-left: auto;
+}
+/* .user-bubble::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  top: 16px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 10px solid var(--accent);
+} */
+.ai-bubble {
+  background: var(--accent);
+  color: var(--foreground);
+  align-self: flex-start;
+  margin-right: auto;
+}
+/* .ai-bubble::after {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 16px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 10px solid var(--accent);
+} */
