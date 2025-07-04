@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Ai reachout",
-  description: "AIReachout is a tool that scouts for potential clients across different industries in a specific area. It collects details like emails, websites, and social profiles of businesses or enterprises, then sends them personalized cold emails and social media messages automatically.",
+  description:
+    "AIReachout is a tool that scouts for potential clients across different industries in a specific area. It collects details like emails, websites, and social profiles of businesses or enterprises, then sends them personalized cold emails and social media messages automatically.",
 };
 
 export default function RootLayout({
@@ -24,6 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="../../public/Gemini_Generated_Image_wj8coxwj8coxwj8c.png" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>
