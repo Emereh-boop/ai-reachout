@@ -270,13 +270,13 @@ export async function chatWithUser() {
     const saveChoice = await askQuestion('\n💾 Would you like to enrich and save these prospects to CSV? (y/n): ');
     
     if (saveChoice.toLowerCase() === 'y' || saveChoice.toLowerCase() === 'yes') {
-      console.log('\n🔄 Processing prospects...');
+      console.log('\n Processing prospects...');
       
       // Validate prospects have real contact information
       const validProspects = validateProspects(prospects);
       
       if (validProspects.length === 0) {
-        console.log('\n❌ No prospects with valid contact information found. Please try again with different criteria.');
+        console.log('\n No prospects with valid contact information found. Please try again with different criteria.');
         return;
       }
       
@@ -286,18 +286,18 @@ export async function chatWithUser() {
       // Append to CSV file
       await appendToCSV(enrichedProspects);
       
-      console.log(`\n✅ Successfully added ${enrichedProspects.length} valid prospects to prospects.csv`);
-      console.log(`📊 Original: ${prospects.length} prospects | Valid: ${enrichedProspects.length} prospects`);
-      console.log('\n📋 Next step:');
+      console.log(`\n Successfully added ${enrichedProspects.length} valid prospects to prospects.csv`);
+      console.log(` Original: ${prospects.length} prospects | Valid: ${enrichedProspects.length} prospects`);
+      console.log('\n Next step:');
       console.log('Run: npm run out (to send outreach emails)');
       
     } else {
-      console.log('\n📋 COPY THE JSON BELOW TO YOUR PROSPECTS.CSV FILE:\n');
+      console.log('\n COPY THE JSON BELOW TO YOUR PROSPECTS.CSV FILE:\n');
       console.log('='.repeat(80));
       console.log(JSON.stringify(prospects, null, 2));
       console.log('='.repeat(80));
       
-      console.log('\n✅ Next steps:');
+      console.log('\n Next steps:');
       console.log('1. Copy the JSON above');
       console.log('2. Replace the content in scripts/prospects.csv');
       console.log('3. Run: npm run imp (to enrich)');
@@ -305,7 +305,7 @@ export async function chatWithUser() {
     }
     
   } else {
-    console.log('❌ No prospects generated. Please try again with different criteria.');
+    console.log(' No prospects generated. Please try again with different criteria.');
   }
   
   // Ask if user wants to generate more
