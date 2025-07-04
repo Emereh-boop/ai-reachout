@@ -10,6 +10,9 @@ import {
   generateProspectsWithAI,
   enrichProspects as enrichProspectsFromScript,
   appendToCSV,
+  // Add this import:
+  // @ts-ignore
+  validateProspects as validateProspectsFromScript,
 } from "../../scripts/generateProspects";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
@@ -34,7 +37,7 @@ const io = new SocketIOServer(server, {
     origin: [
       "http://localhost:3002",
       "http://localhost:3000",
-      "https://mojtabai.vercel.com",
+      "https://mojtabai.vercel.app",
       "https://ai-reachout.onrender.com/",
     ],
     methods: ["GET", "POST", "DELETE", "PATCH"],
@@ -362,8 +365,42 @@ app.post("/chat", async (req, res) => {
   }
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. Ask the user for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria. Once you have all the info, generate a list of real businesses with public contact info. Do not answer questions outside this scope. If the user asks for anything unrelated, politely refuse and remind them of your purpose.`;
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17" });
+    const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. Ask the user for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria. Once you have all the info, generate a list of real businesses with public contact info. 
+
+IMPORTANT: When you have all the required information, your response MUST be a valid JSON array of prospects, and nothing else. Each prospect must have the following fields:
+- name
+- email (real, public, not a placeholder)
+- phone (real, public, if available)
+- socialMedia (real, public, if available)
+- website (if available)
+- title (key person's title)
+- description (1-2 sentences)
+- category (industry)
+- tags (comma-separated)
+- companySize (e.g., 1-10, 10-49, 50-249, 250+)
+- inferredIntent (growth, optimization, efficiency)
+- emailPrompt (Subject and Body for cold outreach)
+
+Format your output as a JSON array ONLY, with no extra text, markdown, or explanation. Example:
+[
+  {
+    "name": "Company Name",
+    "email": "real@email.com",
+    "phone": "+2348012345678",
+    "socialMedia": "LinkedIn: linkedin.com/in/person, Twitter: @person",
+    "website": "https://company.com",
+    "title": "CEO",
+    "description": "Brief description",
+    "category": "Industry",
+    "tags": "tag1,tag2,tag3",
+    "companySize": "1-10",
+    "inferredIntent": "growth",
+    "emailPrompt": "Subject: [High-performing subject line]\nBody: [3-sentence email body]"
+  }
+]
+
+If the user asks for anything unrelated, politely refuse and remind them of your purpose.`;
     const context = [
       { role: "model", parts: [{ text: systemPrompt }] },
       ...filteredMessages.map((m) => ({
@@ -371,11 +408,35 @@ app.post("/chat", async (req, res) => {
         parts: [{ text: m.text }],
       })),
     ];
-    console.log("Gemini context:", JSON.stringify(context, null, 2));
+    // console.log("Gemini context:", JSON.stringify(context, null, 2));
     const result = await model.generateContent({ contents: context });
     const response = await result.response;
     const text = response.text();
     console.log("Gemini reply:", text);
+    // Try to extract JSON array from the reply
+    let validProspects = [];
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const prospects = JSON.parse(jsonMatch[0]);
+        validProspects = validateProspectsFromScript(prospects);
+        if (validProspects.length > 0) {
+          // Enrich prospects with website data
+          const enrichedProspects = await enrichProspectsFromScript(validProspects);
+          // Append to CSV file
+          await appendToCSV(enrichedProspects);
+          // Return enriched prospects for confirmation
+          return res.json({ reply: text, enrichedProspects });
+        }
+        // If no valid prospects, return as before
+        return res.json({ reply: text, validProspects });
+      }
+    } catch (err) {
+      console.warn(
+        "Failed to parse or validate prospects from Gemini reply:",
+        err
+      );
+    }
     res.json({ reply: text });
   } catch (e) {
     let errorMsg = String(e);

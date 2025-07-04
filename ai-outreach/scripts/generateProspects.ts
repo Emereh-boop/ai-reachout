@@ -145,7 +145,7 @@ export async function appendToCSV(prospects: Prospect[], filename: string = 'pro
 
 // AI-powered prospect generation
 export async function generateProspectsWithAI(criteria: any): Promise<Prospect[]> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17" });
   
   const prompt = `Generate real businesses in ${criteria.location}, that match these criteria:
 
@@ -196,7 +196,7 @@ Format as JSON array:
 Focus on real, verifiable businesses with at least one real, public contact method. SKIP any business where you cannot find a real contact method.`;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
     const response = await result.response;
     const text = response.text();
     
@@ -323,3 +323,4 @@ export async function chatWithUser() {
 if (require.main === module) {
   chatWithUser().catch(console.error);
 } 
+export { validateProspects}

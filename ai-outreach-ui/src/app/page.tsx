@@ -144,22 +144,40 @@ export default function Home() {
     setMessages([...messages, { sender: "user", text: input }]);
     setInput("");
     setChatLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
-      });
-      const data = await res.json();
-      setMessages((msgs) => [...msgs, { sender: "ai", text: data.reply }]);
-    } catch {
+
+    const maxRetries = 3;
+    let attempt = 0;
+    let success = false;
+    let data: { reply?: string } = {};
+
+    while (attempt < maxRetries && !success) {
+      try {
+        const res = await fetch(`${API_BASE}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages }),
+        });
+        data = await res.json();
+        if (data && typeof data.reply === 'string' && data.reply.trim() && !data.reply.startsWith("[Error")) {
+          setMessages((msgs) => [...msgs, { sender: "ai", text: data.reply! }]);
+          success = true;
+          break;
+        }
+      } catch (err) {
+        console.error('[error]',err);
+      }
+      attempt++;
+      if (!success && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 seconds
+      }
+    }
+    if (!success) {
       setMessages((msgs) => [
         ...msgs,
-        { sender: "ai", text: "[Error: Failed to get reply]" },
+        { sender: "ai", text: `Failed to get reply after ${maxRetries} attempts` },
       ]);
-    } finally {
-      setChatLoading(false);
     }
+    setChatLoading(false);
   };
 
   const filteredBusinesses = businesses.filter(
