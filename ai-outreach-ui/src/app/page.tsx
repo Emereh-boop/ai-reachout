@@ -383,46 +383,66 @@ export default function Home() {
               <div className="terminal-chat" id="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
                 {messages.map((msg, idx) => {
                   const isExpanded = expandedMsgs[idx];
+                  const shouldShowToggle = msg.text.length > 200;
                   return (
                     <div
                       key={idx}
                       className={`chat-bubble ${msg.sender === "user" ? "user-bubble" : "ai-bubble"}`}
                       style={{
-                        maxHeight: isExpanded ? undefined : 150,
-                        // overflow: isExpanded ? "visible" : "hidden",
                         position: "relative",
-                        transition: "max-height 0.2s",
-                        padding:"12px"
+                        padding: "12px"
                       }}
                     >
                       <div
                         style={{
-                          WebkitMaskImage: !isExpanded && msg.text.length > 300 ? "linear-gradient(180deg, #000 60%, transparent 100%)" : undefined,
-                          maskImage: !isExpanded && msg.text.length > 300 ? "linear-gradient(180deg, #000 60%, transparent 100%)" : undefined,
+                          maxHeight: isExpanded ? "none" : "120px",
+                          overflow: isExpanded ? "visible" : "hidden",
                           overflowWrap: "break-word",
                           whiteSpace: "pre-line",
-                          // padding:"5/px",
+                          lineHeight: "1.4",
+                          position: "relative"
                         }}
                       >
                         {msg.text}
+                        {!isExpanded && shouldShowToggle && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              height: "40px",
+                              background: "linear-gradient(180deg, transparent 0%, var(--terminal-bg) 100%)",
+                              pointerEvents: "none"
+                            }}
+                          />
+                        )}
                       </div>
-                      {!isExpanded && msg.text.length > 300 && (
+                      {shouldShowToggle && (
                         <div
                           style={{
-                            position: "absolute",
-                            bottom: 0,
-                            left: 0,
-                            width: "100%",
                             textAlign: "center",
-                            background: "linear-gradient(180deg, transparent 60%, #23234a 100%)",
-                            cursor: "pointer",
-                            color: "#4f46e5",
-                            fontWeight: 600,
-                            padding: "8px 0 0 0",
+                            marginTop: "4px"
                           }}
-                          onClick={() => setExpandedMsgs((prev) => ({ ...prev, [idx]: true }))}
                         >
-                          See more
+                          <button
+                            onClick={() => setExpandedMsgs((prev) => ({ ...prev, [idx]: !isExpanded }))}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#008069",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              transition: "background 0.2s"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 128, 105, 0.1)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            {isExpanded ? "See less" : "See more"}
+                          </button>
                         </div>
                       )}
                     </div>
