@@ -45,10 +45,10 @@ a {
 .terminal-window {
   background: var(--accent-secondary);
   border: 2px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 2px 24px #13657855;
+  border-radius: 12px;
+  box-shadow: 0 0 25px #13657855;
   width: 100%;
-  max-width: 480px;
+  max-width: 460px;
   min-height: 500px;
   max-height: 500px;
   display: flex;
