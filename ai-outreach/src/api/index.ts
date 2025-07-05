@@ -18,6 +18,7 @@ import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
 dotenv.config();
 
 const app = express();
@@ -52,7 +53,13 @@ app.get("/prospects", (req, res) => {
   if (!fs.existsSync("scripts/prospects.csv")) return res.json([]);
   const prospects: any[] = [];
   fs.createReadStream("scripts/prospects.csv")
-    .pipe(parse({ columns: true, trim: true }))
+    .pipe(parse({ 
+      columns: true, 
+      trim: true,
+      relax_column_count: true,
+      skip_empty_lines: true,
+      relax_quotes: true
+    }))
     .on("data", (row) => prospects.push(row))
     .on("end", () => res.json(prospects))
     .on("error", (err) => res.status(500).json({ error: String(err) }));
@@ -78,8 +85,30 @@ app.post("/enrich", async (req, res) => {
 // POST /outreach - run outreach
 app.post("/outreach", async (req, res) => {
   try {
-    await runOutreach();
-    res.json({ status: "outreach complete" });
+    const { email } = req.body;
+    if (email) {
+      // Single prospect outreach
+      await runOutreach(email);
+      res.json({ status: "outreach complete", target: email });
+    } else {
+      // Bulk outreach (all prospects)
+      await runOutreach();
+      res.json({ status: "outreach complete", target: "all" });
+    }
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /outreach-single - run outreach for a single prospect
+app.post("/outreach-single", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    await runOutreach(email);
+    res.json({ status: "outreach complete", target: email });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -253,13 +282,27 @@ app.get("/ws-test", (req, res) => {
 
 // GET /persons - return all persons from persons.csv
 app.get("/persons", (req, res) => {
-  if (!fs.existsSync("scripts/persons.csv")) return res.json([]);
+  if (!fs.existsSync("scripts/persons.csv")) {
+    return res.json([]);
+  }
   const persons: any[] = [];
   fs.createReadStream("scripts/persons.csv")
-    .pipe(parse({ columns: true, trim: true }))
-    .on("data", (row) => persons.push(row))
-    .on("end", () => res.json(persons))
-    .on("error", (err) => res.status(500).json({ error: String(err) }));
+    .pipe(parse({ 
+      columns: true, 
+      trim: true,
+      relax_column_count: true,
+      skip_empty_lines: true,
+      relax_quotes: true
+    }))
+    .on("data", (row) => {
+      persons.push(row);
+    })
+    .on("end", () => {
+      res.json(persons);
+    })
+    .on("error", (err) => {
+      res.status(500).json({ error: String(err) });
+    });
 });
 
 // POST /persons - upload a new persons.csv
@@ -349,56 +392,58 @@ app.use((req, res, next) => {
 // POST /chat - freeform AI chat (Gemini-powered, context-aware)
 app.post("/chat", async (req, res) => {
   const { messages } = req.body;
-  console.log("--- Incoming /chat request ---");
-  console.log("messages:", JSON.stringify(messages, null, 2));
   if (!messages || !Array.isArray(messages)) {
-    console.error("Invalid messages payload:", messages);
     return res.status(400).json({ error: "messages (array) is required" });
   }
   // Filter out messages with empty or missing text
   const filteredMessages = messages.filter((m) => m.text && m.text.trim());
   if (filteredMessages.length !== messages.length) {
-    console.warn(
-      "Filtered out empty/invalid messages:",
-      messages.filter((m) => !m.text || !m.text.trim())
-    );
+    // Filtered out empty/invalid messages
   }
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17" });
-    const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. Ask the user for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria. Once you have all the info, generate a list of real businesses with public contact info. 
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. 
 
-IMPORTANT: When you have all the required information, your response MUST be a valid JSON array of prospects, and nothing else. Each prospect must have the following fields:
-- name
-- email (real, public, not a placeholder)
-- phone (real, public, if available)
-- socialMedia (real, public, if available)
-- website (if available)
-- title (key person's title)
-- description (1-2 sentences)
+FIRST, ask the user what type of prospects they want:
+- "People" (individual business owners, entrepreneurs, key decision makers)
+- "Enterprise" (companies/businesses)
+
+Then ask for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria.
+
+IMPORTANT: When you have all the required information, your response MUST be a JSON array of prospects, and nothing else.
+
+For PEOPLE (individual business owners/entrepreneurs):
+Each prospect must have:
+- name (full name of the person)
+- email (real, public email of the person)
+- phone (real, public phone, if available)
+- socialMedia (real, public social profiles)
+- title (their role: CEO, Founder, Owner, Director, etc.)
+- company (the business they own/run)
+- description (brief description of their business)
 - category (industry)
 - tags (comma-separated)
-- companySize (e.g., 1-10, 10-49, 50-249, 250+)
-- inferredIntent (growth, optimization, efficiency)
+- companySize (size of their business)
+- inferredIntent (growth, optimization, efficiency, etc.)
 - emailPrompt (Subject and Body for cold outreach)
 
-Format your output as a JSON array ONLY, with no extra text, markdown, or explanation. Example:
-[
-  {
-    "name": "Company Name",
-    "email": "real@email.com",
-    "phone": "+2348012345678",
-    "socialMedia": "LinkedIn: linkedin.com/in/person, Twitter: @person",
-    "website": "https://company.com",
-    "title": "CEO",
-    "description": "Brief description",
-    "category": "Industry",
-    "tags": "tag1,tag2,tag3",
-    "companySize": "1-10",
-    "inferredIntent": "growth",
-    "emailPrompt": "Subject: [High-performing subject line]\nBody: [3-sentence email body]"
-  }
-]
+For ENTERPRISE (companies):
+Each prospect must have:
+- name (company name)
+- email (real, public contact email)
+- phone (real, public phone)
+- socialMedia (real, public social profiles)
+- website (company website)
+- title (key person's title)
+- description (company description)
+- category (industry)
+- tags (comma-separated)
+- companySize (1-10, 10-49, 50-249, 250+)
+- inferredIntent (growth, optimization, efficiency, etc.)
+- emailPrompt (Subject and Body for cold outreach)
+
+Format your output as a JSON array ONLY, with no extra text, markdown, or explanation.
 
 If the user asks for anything unrelated, politely refuse and remind them of your purpose.`;
     const context = [
@@ -408,34 +453,45 @@ If the user asks for anything unrelated, politely refuse and remind them of your
         parts: [{ text: m.text }],
       })),
     ];
-    // console.log("Gemini context:", JSON.stringify(context, null, 2));
     const result = await model.generateContent({ contents: context });
     const response = await result.response;
     const text = response.text();
-    console.log("Gemini reply:", text);
     // Try to extract JSON array from the reply
     let validProspects = [];
+    let prospectType: "enterprise" | "people" = "enterprise"; // default
+    
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const prospects = JSON.parse(jsonMatch[0]);
-        validProspects = validateProspectsFromScript(prospects);
+        
+        // Determine if these are people or enterprise prospects
+        // Check if the first prospect has a 'company' field (indicates people)
+        if (prospects.length > 0 && prospects[0].company) {
+          prospectType = "people";
+        }
+        
+        validProspects = validateProspectsFromScript(prospects, prospectType);
         if (validProspects.length > 0) {
           // Enrich prospects with website data
-          const enrichedProspects = await enrichProspectsFromScript(validProspects);
-          // Append to CSV file
-          await appendToCSV(enrichedProspects);
+          const enrichedProspects = await enrichProspectsFromScript(validProspects, prospectType);
+          
+          // Save to appropriate CSV file based on type
+          await appendToCSV(enrichedProspects, prospectType);
+          
           // Return enriched prospects for confirmation
-          return res.json({ reply: text, enrichedProspects });
+          return res.json({ 
+            reply: text, 
+            enrichedProspects,
+            type: prospectType,
+            message: `Successfully saved ${enrichedProspects.length} ${prospectType} prospects`
+          });
         }
         // If no valid prospects, return as before
-        return res.json({ reply: text, validProspects });
+        return res.json({ reply: text, validProspects, type: prospectType });
       }
     } catch (err) {
-      console.warn(
-        "Failed to parse or validate prospects from Gemini reply:",
-        err
-      );
+      // Failed to parse or validate prospects from Gemini reply
     }
     res.json({ reply: text });
   } catch (e) {
@@ -445,10 +501,103 @@ If the user asks for anything unrelated, politely refuse and remind them of your
       errorMsg = e.message;
       errorStack = e.stack;
     } else {
-      console.error("Non-Error thrown:", e);
+      // Non-Error thrown
     }
-    console.error("Gemini API error:", errorStack || errorMsg);
     res.status(500).json({ error: errorMsg, stack: errorStack });
+  }
+});
+
+// GET /news - fetch business news for reports section
+app.get("/news", async (req, res) => {
+  try {
+    // Using NewsAPI.org (free tier: 100 requests/day)
+    const apiKey = process.env.NEWS_API_KEY;
+    const country = req.query.country || 'ng'; // Default to Nigeria
+    const category = req.query.category || 'business';
+    
+    if (!apiKey || apiKey === 'demo') {
+      // Using demo news data (no API key)
+      const demoNews = [
+        {
+          title: "Business Growth Trends in 2024",
+          description: "Key insights into emerging business opportunities and market dynamics.",
+          url: "#",
+          publishedAt: new Date().toISOString(),
+          source: "Business Daily"
+        },
+        {
+          title: "Digital Transformation in SMEs",
+          description: "How small and medium enterprises are adapting to digital technologies.",
+          url: "#", 
+          publishedAt: new Date().toISOString(),
+          source: "Tech Weekly"
+        },
+        {
+          title: "AI-Powered Business Solutions",
+          description: "How artificial intelligence is revolutionizing business operations and customer engagement.",
+          url: "#",
+          publishedAt: new Date().toISOString(),
+          source: "Tech Insights"
+        }
+      ];
+      return res.json(demoNews);
+    }
+    
+    const url = `https://newsapi.org/v2/everything?q=business+entrepreneurs+startups&language=en&sortBy=publishedAt&apiKey=${apiKey}`;
+    
+    const response = await fetch(url);
+    const data = await response.json() as any;
+    
+    if (data.status === 'error') {
+      // Fallback to demo data if API fails
+      const demoNews = [
+        {
+          title: "Business Growth Trends in 2024",
+          description: "Key insights into emerging business opportunities and market dynamics.",
+          url: "#",
+          publishedAt: new Date().toISOString(),
+          source: "Business Daily"
+        },
+        {
+          title: "Digital Transformation in SMEs",
+          description: "How small and medium enterprises are adapting to digital technologies.",
+          url: "#", 
+          publishedAt: new Date().toISOString(),
+          source: "Tech Weekly"
+        }
+      ];
+      return res.json(demoNews);
+    }
+    
+    const news = data.articles.map((article: any) => ({
+      title: article.title,
+      description: article.description,
+      url: article.url,
+      publishedAt: article.publishedAt,
+      source: article.source.name
+    }));
+    
+    res.json(news);
+    
+  } catch (error) {
+    // Return demo data on error
+    const demoNews = [
+      {
+        title: "Business Growth Trends in 2024",
+        description: "Key insights into emerging business opportunities and market dynamics.",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        source: "Business Daily"
+      },
+      {
+        title: "Digital Transformation in SMEs", 
+        description: "How small and medium enterprises are adapting to digital technologies.",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        source: "Tech Weekly"
+      }
+    ];
+    res.json(demoNews);
   }
 });
 
@@ -457,7 +606,7 @@ const PORT = process.env.PORT || 2003;
 // Only start the server if this file is run directly
 if (require.main === module) {
   server.listen(PORT, () =>
-    console.log(`API server (with WebSocket) running on port ${PORT}`)
+    console.log(`API server running on port ${PORT}`)
   );
 }
 

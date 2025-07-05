@@ -12,7 +12,7 @@ function daysBetween(date1: Date, date2: Date) {
   return Math.abs((date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export async function runOutreach() {
+export async function runOutreach(targetEmail?: string) {
   return new Promise<void>((resolve, reject) => {
     const input: any[] = [];
     let results: any[] = [];
@@ -49,7 +49,7 @@ export async function runOutreach() {
         const newResults = [];
         const now = new Date();
         // Filter prospects with valid email addresses and not recently emailed or confirmed
-        const prospectsWithEmail = input.filter(prospect => {
+        let prospectsWithEmail = input.filter(prospect => {
           if (!prospect.email || prospect.email.trim() === '') return false;
           const prev = results.find(r => r.email === prospect.email);
           if (prev) {
@@ -58,6 +58,15 @@ export async function runOutreach() {
           }
           return true;
         });
+
+        // If targetEmail is provided, filter to only that prospect
+        if (targetEmail) {
+          prospectsWithEmail = prospectsWithEmail.filter(prospect => 
+            prospect.email.toLowerCase() === targetEmail.toLowerCase()
+          );
+          console.log(`[SEE MORE] Single prospect outreach for: ${targetEmail}`);
+        }
+
         console.log(`[SEE MORE] Prospects eligible for outreach: ${prospectsWithEmail.length} out of ${input.length}`);
         for (const [i, prospect] of prospectsWithEmail.slice(0, 20).entries()) {
           let subject = '', body = '', html = '', status = '', error = '';

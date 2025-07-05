@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import { stringify } from 'csv-stringify';
+import { createObjectCsvWriter } from 'csv-writer';
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
@@ -63,16 +64,18 @@ function extractAllMetadata(html: string): any {
 }
 
 // Enrich prospects with website metadata
-export async function enrichProspects(prospects: Prospect[]): Promise<Prospect[]> {
-  console.log('🔍 Enriching prospects with website data...');
+export async function enrichProspects(prospects: Prospect[], type: 'people' | 'enterprise' = 'enterprise'): Promise<Prospect[]> {
+  console.log(`🔍 Enriching ${type} prospects with website data...`);
   
   const enriched = [];
   for (const prospect of prospects) {
     let meta: any = {};
     try {
-      if (prospect.website && prospect.website !== 'Not provided') {
-        console.log(`   📡 Fetching: ${prospect.website}`);
-        const res = await axios.get(prospect.website, { 
+      // For people, use their company website; for enterprise, use their own website
+      const websiteToFetch = type === 'people' ? prospect.website : prospect.website;
+      if (websiteToFetch && websiteToFetch !== 'Not provided') {
+        console.log(`   📡 Fetching: ${websiteToFetch}`);
+        const res = await axios.get(websiteToFetch, { 
           timeout: 5000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -97,7 +100,7 @@ export async function enrichProspects(prospects: Prospect[]): Promise<Prospect[]
 }
 
 // Validate prospects have real contact information
-function validateProspects(prospects: Prospect[]): Prospect[] {
+function validateProspects(prospects: Prospect[], type: 'people' | 'enterprise' = 'enterprise'): Prospect[] {
   return prospects.filter(prospect => {
     const hasEmail = prospect.email && prospect.email.trim() !== '' && !prospect.email.includes('@example.com');
     const hasSocialMedia = prospect.socialMedia && prospect.socialMedia.trim() !== '';
@@ -110,42 +113,66 @@ function validateProspects(prospects: Prospect[]): Prospect[] {
   });
 }
 
-// Append prospects to CSV file
-export async function appendToCSV(prospects: Prospect[], filename: string = 'prospects.csv') {
-  const csvPath = path.join(__dirname, filename);
-  
-  // Check if file exists to determine if we need headers
-  const fileExists = fs.existsSync(csvPath);
-  
-  return new Promise<void>((resolve, reject) => {
-    stringify(prospects, {
-      header: true,
-      quoted: true,
-      quoted_empty: true,
-      escape: '"',
-      quoted_match: /.*/,
-      record_delimiter: 'auto',
-    }, (err, output) => {
-      if (err) return reject(err);
-      
-      if (fileExists) {
-        // Append to existing file (remove header from output)
-        const lines = output.split('\n');
-        const dataLines = lines.slice(1).join('\n'); // Remove header line
-        fs.appendFileSync(csvPath, dataLines);
-      } else {
-        // Create new file with header
-        fs.writeFileSync(csvPath, output);
-      }
-      
-      resolve();
+// Append prospects to CSV file based on type
+export async function appendToCSV(prospects: Prospect[], type: 'people' | 'enterprise' = 'enterprise') {
+  if (type === 'people') {
+    // Save people to persons.csv
+    const peopleData = prospects.map(p => ({
+      name: p.name,
+      email: p.email,
+      phone: p.phone || '',
+      social: p.socialMedia || '',
+      reachedOut: 'false'
+    }));
+    
+    const csvPath = path.join(__dirname, 'persons.csv');
+    const csvWriter = createObjectCsvWriter({
+      path: csvPath,
+      header: [
+        { id: 'name', title: 'name' },
+        { id: 'email', title: 'email' },
+        { id: 'phone', title: 'phone' },
+        { id: 'social', title: 'social' },
+        { id: 'reachedOut', title: 'reachedOut' }
+      ],
+      append: true,
+      alwaysQuote: true,
     });
-  });
+    await csvWriter.writeRecords(peopleData);
+    console.log(`✅ Saved ${peopleData.length} people to persons.csv`);
+  } else {
+    // Save enterprise to prospects.csv
+    const csvPath = path.join(__dirname, 'prospects.csv');
+    const headers = [
+      { id: 'name', title: 'name' },
+      { id: 'email', title: 'email' },
+      { id: 'website', title: 'website' },
+      { id: 'title', title: 'title' },
+      { id: 'description', title: 'description' },
+      { id: 'category', title: 'category' },
+      { id: 'tags', title: 'tags' },
+      { id: 'companySize', title: 'companySize' },
+      { id: 'inferredIntent', title: 'inferredIntent' },
+      { id: 'contactChannel', title: 'contactChannel' },
+      { id: 'emailPrompt', title: 'emailPrompt' },
+      { id: 'phone', title: 'phone' },
+      { id: 'socialMedia', title: 'socialMedia' },
+      { id: 'ogSiteName', title: 'ogSiteName' },
+    ];
+    const csvWriter = createObjectCsvWriter({
+      path: csvPath,
+      header: headers,
+      append: true,
+      alwaysQuote: true,
+    });
+    await csvWriter.writeRecords(prospects);
+    console.log(`✅ Saved ${prospects.length} enterprises to prospects.csv`);
+  }
 }
 
 // AI-powered prospect generation
 export async function generateProspectsWithAI(criteria: any): Promise<Prospect[]> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
   
   const prompt = `Generate real businesses in ${criteria.location}, that match these criteria:
 
@@ -323,4 +350,4 @@ export async function chatWithUser() {
 if (require.main === module) {
   chatWithUser().catch(console.error);
 } 
-export { validateProspects}
+export { validateProspects, displayProspects}
