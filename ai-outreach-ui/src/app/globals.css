@@ -48,9 +48,9 @@ a {
   border-radius: 16px;
   box-shadow: 0 2px 24px #13657855;
   width: 100%;
-  max-width: 540px;
-  min-height: 480px;
-  max-height: 480px;
+  max-width: 480px;
+  min-height: 500px;
+  max-height: 500px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
