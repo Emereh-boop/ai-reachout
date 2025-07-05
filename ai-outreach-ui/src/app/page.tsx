@@ -412,9 +412,7 @@ export default function Home() {
                               left: 0,
                               right: 0,
                               height: "40px",
-                              background: msg.sender === "user" 
-                                ? "linear-gradient(180deg, transparent 0%, #008069 100%)"
-                                : "linear-gradient(180deg, transparent 0%, #23234a 100%)",
+                              background:"#008069",
                               pointerEvents: "none"
                             }}
                           />
@@ -432,11 +430,11 @@ export default function Home() {
                             style={{
                               background: "none",
                               border: "none",
-                              color: "#008069",
+                              color: "rgb(255, 255, 255)",
                               cursor: "pointer",
                               fontSize: "12px",
                               fontWeight: "500",
-                              padding: "4px 8px",
+                              padding: "2px 4px",
                               borderRadius: "4px",
                               transition: "background 0.2s"
                             }}
