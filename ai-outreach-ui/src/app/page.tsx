@@ -412,7 +412,9 @@ export default function Home() {
                               left: 0,
                               right: 0,
                               height: "40px",
-                              background: "linear-gradient(180deg, transparent 0%, var(--terminal-bg) 100%)",
+                              background: msg.sender === "user" 
+                                ? "linear-gradient(180deg, transparent 0%, #008069 100%)"
+                                : "linear-gradient(180deg, transparent 0%, #23234a 100%)",
                               pointerEvents: "none"
                             }}
                           />

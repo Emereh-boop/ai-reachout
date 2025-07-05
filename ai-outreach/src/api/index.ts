@@ -520,8 +520,6 @@ app.get("/news", async (req, res) => {
     const country = req.query.country || 'ng'; // Default to Nigeria
     const category = req.query.category || 'business';
     
-    console.log(`🔑 News API Key: ${apiKey ? 'Present' : 'Missing'}`);
-    
     if (!apiKey || apiKey === 'demo') {
       console.log('📰 Using demo news data (no API key)');
       const demoNews = [
