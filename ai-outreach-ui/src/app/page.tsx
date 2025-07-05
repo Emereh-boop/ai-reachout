@@ -21,11 +21,11 @@ import Image from 'next/image';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://ai-reachout.onrender.com";
 
 const TABS = [
-  { key: "chat", label: <MessageCircle size={22} />, name: "Chat" },
-  { key: "reports", label: <Newspaper size={22} />, name: "News" },
   { key: "businesses", label: <Building2 size={22} />, name: "Enterprise" },
   { key: "persons", label: <Users size={22} />, name: "People" },
+  { key: "chat", label: <MessageCircle size={22} />, name: "Chat" },
   { key: "info", label: <Info size={22} />, name: "About" },
+  { key: "reports", label: <Newspaper size={22} />, name: "News" },
 ];
 
 type ContactRecord = {
@@ -44,6 +44,8 @@ type NewsArticle = {
   source: string;
 };
 
+type Message = { sender: string; text: string };
+
 function SlidingDotsLoader() {
   return (
     <div className="sliding-dots-loader">
@@ -56,9 +58,7 @@ function SlidingDotsLoader() {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("chat");
-  const [messages, setMessages] = useState([
-    { sender: "Beamer", text: "Hey, I'm Beamer. Let's light the way. How can I assist?" }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -209,7 +209,7 @@ export default function Home() {
           body: JSON.stringify({ messages: chatHistory }),
         });
         data = await res.json();
-        if (data && typeof data.reply === 'string' && data.reply.trim() && !data.reply.startsWith("[Error")) {
+        if (data && typeof data?.reply === 'string' && data.reply.trim() && !data.reply.startsWith("[Error")) {
           setMessages((msgs) => [...msgs, userMsg, { sender: "ai", text: data.reply! }]);
           success = true;
           break;
@@ -381,7 +381,7 @@ export default function Home() {
           {activeTab === "chat" && (
             <>
               <div className="terminal-chat" id="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
-                {messages.map((msg, idx) => {
+                {messages?.map((msg, idx) => {
                   const isExpanded = expandedMsgs[idx];
                   const shouldShowToggle = msg.text.length > 200;
                   return (
@@ -403,7 +403,7 @@ export default function Home() {
                           position: "relative"
                         }}
                       >
-                        {msg.text}
+                        {msg?.text}
                         {!isExpanded && shouldShowToggle && (
                           <div
                             style={{
