@@ -138,7 +138,7 @@ export default function Home() {
           const businessesData = Array.isArray(data) ? data : [];
           setBusinesses(businessesData);
         })
-        .catch((error) => {
+        .catch(() => {
           setBizError("Failed to load businesses");
         })
         .finally(() => setBizLoading(false));
@@ -158,7 +158,7 @@ export default function Home() {
           const personsData = Array.isArray(data) ? data : [];
           setPersons(personsData);
         })
-        .catch((error) => {
+        .catch(() => {
           setPersonError("Failed to load persons");
         })
         .finally(() => setPersonLoading(false));
@@ -178,7 +178,7 @@ export default function Home() {
           const newsData = Array.isArray(data) ? data : [];
           setReports(newsData);
         })
-        .catch((error) => {
+        .catch(() => {
           setReportsError("Failed to load news");
         })
         .finally(() => setReportsLoading(false));
@@ -795,13 +795,30 @@ export default function Home() {
                   <Users size={16} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: "#e9edef", fontWeight: 600, fontSize: "13px" }}>
+                  <div style={{ color: "#e9edef", fontWeight: "600", fontSize: "13px" }}>
                     People Contacts
                   </div>
                   <div style={{ color: "#667781", fontSize: "11px" }}>
                     {filteredPersons.length} people
                   </div>
                 </div>
+                <input
+                  className="terminal-input"
+                  style={{ 
+                    width: "120px", 
+                    padding: "4px 8px", 
+                    fontSize: "11px",
+                    background: "#2a3942",
+                    border: "1px solid #008069",
+                    borderRadius: "4px",
+                    color: "#e9edef"
+                  }}
+                  type="text"
+                  value={personSearch}
+                  onChange={(e) => setPersonSearch(e.target.value)}
+                  placeholder="Search people..."
+                  disabled={personLoading}
+                />
                 <button
                   className="terminal-btn"
                   style={{
