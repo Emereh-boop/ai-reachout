@@ -395,7 +395,7 @@ export default function Home() {
                     >
                       <div
                         style={{
-                          maxHeight: isExpanded ? "none" : "120px",
+                          maxHeight: isExpanded ? "none" : "150px",
                           overflow: isExpanded ? "visible" : "hidden",
                           overflowWrap: "break-word",
                           whiteSpace: "pre-line",
@@ -412,7 +412,6 @@ export default function Home() {
                               left: 0,
                               right: 0,
                               height: "40px",
-                              background:"#008069",
                               pointerEvents: "none"
                             }}
                           />
