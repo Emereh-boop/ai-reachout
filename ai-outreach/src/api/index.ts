@@ -405,16 +405,23 @@ app.post("/chat", async (req, res) => {
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     const systemPrompt = `You are an AI assistant for business prospecting and outreach. Your job is to help the user find real businesses and contacts for outreach. 
 
-FIRST, ask the user what type of prospects they want:
+You can help with:
+- Finding business prospects and contacts
+- Generating prospect lists with contact information
+- Business research and analysis
+- Outreach strategy and messaging
+- General business questions and advice
+
+When the user wants to generate prospects, ask them what type they prefer:
 - "People" (individual business owners, entrepreneurs, key decision makers)
 - "Enterprise" (companies/businesses)
 
-Then ask for the following information, one at a time: location, industry focus, company size, business intent, and any additional criteria.
+Then gather information like location, industry focus, company size, business intent, and any additional criteria.
 
-IMPORTANT: When you have all the required information, your response MUST be a JSON array of prospects, and nothing else.
+When you have all the required information for prospect generation, format your response as a JSON array of prospects.
 
 For PEOPLE (individual business owners/entrepreneurs):
-Each prospect must have:
+Each prospect should have:
 - name (full name of the person)
 - email (real, public email of the person)
 - phone (real, public phone, if available)
@@ -429,7 +436,7 @@ Each prospect must have:
 - emailPrompt (Subject and Body for cold outreach)
 
 For ENTERPRISE (companies):
-Each prospect must have:
+Each prospect should have:
 - name (company name)
 - email (real, public contact email)
 - phone (real, public phone)
@@ -443,9 +450,7 @@ Each prospect must have:
 - inferredIntent (growth, optimization, efficiency, etc.)
 - emailPrompt (Subject and Body for cold outreach)
 
-Format your output as a JSON array ONLY, with no extra text, markdown, or explanation.
-
-If the user asks for anything unrelated, politely refuse and remind them of your purpose.`;
+You can also help with general business questions, market research, and outreach strategies. Be helpful and informative while staying focused on business-related topics.`;
     const context = [
       { role: "model", parts: [{ text: systemPrompt }] },
       ...filteredMessages.map((m) => ({
@@ -515,8 +520,10 @@ app.get("/news", async (req, res) => {
     const country = req.query.country || 'ng'; // Default to Nigeria
     const category = req.query.category || 'business';
     
+    console.log(`🔑 News API Key: ${apiKey ? 'Present' : 'Missing'}`);
+    
     if (!apiKey || apiKey === 'demo') {
-      // Using demo news data (no API key)
+      console.log('📰 Using demo news data (no API key)');
       const demoNews = [
         {
           title: "Business Growth Trends in 2024",
@@ -544,11 +551,13 @@ app.get("/news", async (req, res) => {
     }
     
     const url = `https://newsapi.org/v2/everything?q=business+entrepreneurs+startups&language=en&sortBy=publishedAt&apiKey=${apiKey}`;
+    console.log(`�� Fetching news from: ${url}`);
     
     const response = await fetch(url);
     const data = await response.json() as any;
     
     if (data.status === 'error') {
+      console.error('❌ News API error:', data.message);
       // Fallback to demo data if API fails
       const demoNews = [
         {
@@ -577,9 +586,11 @@ app.get("/news", async (req, res) => {
       source: article.source.name
     }));
     
+    console.log(`✅ Fetched ${news.length} news articles`);
     res.json(news);
     
   } catch (error) {
+    console.error('❌ Error fetching news:', error);
     // Return demo data on error
     const demoNews = [
       {
