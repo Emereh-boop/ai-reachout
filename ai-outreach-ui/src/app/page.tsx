@@ -9,20 +9,23 @@ import {
   Upload,
   Trash2,
   Link2,
-  Link2Off,
+  Newspaper,
+  Building2,
+  Users,
+  Info,
 } from "lucide-react";
-import logo from '../../public/beam-no-bg.png'
+import logo from '../../public/beam-dark-no-bg.png'
 import Image from 'next/image';
 
-// Set API_BASE from env or default to local backend
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3002";
+// Set API_BASE from env or default to Render backend
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://ai-reachout.onrender.com";
 
 const TABS = [
-  { key: "chat", label: "Chat" },
-  { key: "reports", label: "Reports" },
-  { key: "businesses", label: "Businesses" },
-  { key: "persons", label: "Persons" },
-  { key: "info", label: "Info" },
+  { key: "chat", label: <MessageCircle size={22} />, name: "Chat" },
+  { key: "reports", label: <Newspaper size={22} />, name: "News" },
+  { key: "businesses", label: <Building2 size={22} />, name: "Enterprise" },
+  { key: "persons", label: <Users size={22} />, name: "People" },
+  { key: "info", label: <Info size={22} />, name: "About" },
 ];
 
 type ContactRecord = {
@@ -31,6 +34,14 @@ type ContactRecord = {
   phone?: string;
   social?: string;
   reachedOut?: string;
+};
+
+type NewsArticle = {
+  title: string;
+  description: string;
+  url: string;
+  publishedAt: string;
+  source: string;
 };
 
 function SlidingDotsLoader() {
@@ -53,20 +64,20 @@ export default function Home() {
 
   // Businesses
   const [businesses, setBusinesses] = useState<ContactRecord[]>([]);
-  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [bizLoading, setBizLoading] = useState(false);
   const [bizError, setBizError] = useState<string | null>(null);
+  const [businessSearch, setBusinessSearch] = useState("");
 
   // Persons
   const [persons, setPersons] = useState<ContactRecord[]>([]);
-  const [personSearch, setPersonSearch] = useState("");
   const [personSelected, setPersonSelected] = useState<string[]>([]);
   const [personLoading, setPersonLoading] = useState(false);
   const [personError, setPersonError] = useState<string | null>(null);
+  const [personSearch, setPersonSearch] = useState("");
 
   // Reports
-  const [reports, setReports] = useState<Record<string, unknown>[]>([]);
+  const [reports, setReports] = useState<NewsArticle[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
 
@@ -95,6 +106,21 @@ export default function Home() {
   const bizFileInputRef = useRef<HTMLInputElement>(null);
   const personFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Add state to track expanded chat bubbles
+  const [expandedMsgs, setExpandedMsgs] = useState<{ [key: number]: boolean }>({});
+
+  // Alert modal state
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertTitle, setAlertTitle] = useState("");
+
+  // Helper function to show custom alerts
+  const showAlert = (title: string, message: string) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setShowAlertModal(true);
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -105,9 +131,16 @@ export default function Home() {
       setBizLoading(true);
       setBizError(null);
       fetch(`${API_BASE}/prospects`)
-        .then((res) => res.json())
-        .then(setBusinesses)
-        .catch(() => setBizError("Failed to load businesses"))
+        .then((res) => {
+          return res.json();
+        })
+        .then((data) => {
+          const businessesData = Array.isArray(data) ? data : [];
+          setBusinesses(businessesData);
+        })
+        .catch((error) => {
+          setBizError("Failed to load businesses");
+        })
         .finally(() => setBizLoading(false));
     }
   }, [activeTab]);
@@ -118,9 +151,16 @@ export default function Home() {
       setPersonLoading(true);
       setPersonError(null);
       fetch(`${API_BASE}/persons`)
-        .then((res) => res.json())
-        .then(setPersons)
-        .catch(() => setPersonError("Failed to load persons"))
+        .then((res) => {
+          return res.json();
+        })
+        .then((data) => {
+          const personsData = Array.isArray(data) ? data : [];
+          setPersons(personsData);
+        })
+        .catch((error) => {
+          setPersonError("Failed to load persons");
+        })
         .finally(() => setPersonLoading(false));
     }
   }, [activeTab]);
@@ -130,10 +170,17 @@ export default function Home() {
     if (activeTab === "reports") {
       setReportsLoading(true);
       setReportsError(null);
-      fetch(`${API_BASE}/results`)
-        .then((res) => res.json())
-        .then(setReports)
-        .catch(() => setReportsError("Failed to load reports"))
+      fetch(`${API_BASE}/news`)
+        .then((res) => {
+          return res.json();
+        })
+        .then((data) => {
+          const newsData = Array.isArray(data) ? data : [];
+          setReports(newsData);
+        })
+        .catch((error) => {
+          setReportsError("Failed to load news");
+        })
         .finally(() => setReportsLoading(false));
     }
   }, [activeTab]);
@@ -141,25 +188,29 @@ export default function Home() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    setMessages([...messages, { sender: "user", text: input }]);
+    const userMsg = { sender: "user", text: input };
+    const baseHistory = [...messages]; // Don't add userMsg yet
     setInput("");
     setChatLoading(true);
 
-    const maxRetries = 3;
+    const maxRetries = 5;
     let attempt = 0;
     let success = false;
     let data: { reply?: string } = {};
 
     while (attempt < maxRetries && !success) {
       try {
+        // Only send the last 9 previous messages plus the new user message
+        const trimmedBase = baseHistory.slice(-9); // 9 + 1 = 10
+        const chatHistory = [...trimmedBase, userMsg];
         const res = await fetch(`${API_BASE}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages }),
+          body: JSON.stringify({ messages: chatHistory }),
         });
         data = await res.json();
         if (data && typeof data.reply === 'string' && data.reply.trim() && !data.reply.startsWith("[Error")) {
-          setMessages((msgs) => [...msgs, { sender: "ai", text: data.reply! }]);
+          setMessages((msgs) => [...msgs, userMsg, { sender: "ai", text: data.reply! }]);
           success = true;
           break;
         }
@@ -168,24 +219,21 @@ export default function Home() {
       }
       attempt++;
       if (!success && attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 seconds
+        await new Promise((resolve) => setTimeout(resolve, 15000)); // 15 seconds
       }
     }
     if (!success) {
-      setMessages((msgs) => [
-        ...msgs,
-        { sender: "ai", text: `Failed to get reply after ${maxRetries} attempts` },
-      ]);
+      setMessages((msgs) => [...msgs, userMsg, { sender: "ai", text: `Failed to get reply after ${maxRetries} attempts` }]);
     }
     setChatLoading(false);
   };
 
   const filteredBusinesses = businesses.filter(
-    (biz) =>
-      biz.name?.toLowerCase().includes(search.toLowerCase()) ||
-      biz.email?.toLowerCase().includes(search.toLowerCase()) ||
-      biz.phone?.includes(search) ||
-      biz.social?.toLowerCase().includes(search.toLowerCase())
+    (business) =>
+      business.name?.toLowerCase().includes(businessSearch.toLowerCase()) ||
+      business.email?.toLowerCase().includes(businessSearch.toLowerCase()) ||
+      business.phone?.includes(businessSearch) ||
+      business.social?.toLowerCase().includes(businessSearch.toLowerCase())
   );
 
   const filteredPersons = persons.filter(
@@ -195,17 +243,6 @@ export default function Home() {
       person.phone?.includes(personSearch) ||
       person.social?.toLowerCase().includes(personSearch.toLowerCase())
   );
-
-  const handleSelect = (name: string) => {
-    setSelected((sel) =>
-      sel.includes(name) ? sel.filter((n) => n !== name) : [...sel, name]
-    );
-  };
-  const handlePersonSelect = (name: string) => {
-    setPersonSelected((sel) =>
-      sel.includes(name) ? sel.filter((n) => n !== name) : [...sel, name]
-    );
-  };
 
   // Add business
   const handleAddBiz = async (e: React.FormEvent) => {
@@ -242,54 +279,55 @@ export default function Home() {
   };
   // Delete selected businesses
   const handleDeleteBiz = async () => {
-    for (const name of selected) {
-      const biz = businesses.find((b) => b.name === name) || {};
-      if (biz.email) {
-        await fetch(`${API_BASE}/prospects`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: biz.email }),
-        });
+    try {
+      for (const name of selected) {
+        const biz = businesses.find((b) => b.name === name) || {};
+        if (biz.email) {
+          await fetch(`${API_BASE}/prospects`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: biz.email }),
+          });
+        }
       }
+      // Clear selection and refresh data
+      setSelected([]);
+      setBizLoading(true);
+      const response = await fetch(`${API_BASE}/prospects`);
+      const data = await response.json();
+      setBusinesses(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error deleting businesses:", error);
+      showAlert("Error", "Failed to delete businesses. Please try again.");
+    } finally {
+      setBizLoading(false);
     }
-    setActiveTab("businesses");
   };
+  
   // Delete selected persons
   const handleDeletePerson = async () => {
-    for (const name of personSelected) {
-      const person = persons.find((p) => p.name === name) || {};
-      if (person.email) {
-        await fetch(`${API_BASE}/persons`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: person.email }),
-        });
+    try {
+      for (const name of personSelected) {
+        const person = persons.find((p) => p.name === name) || {};
+        if (person.email) {
+          await fetch(`${API_BASE}/persons`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: person.email }),
+          });
+        }
       }
-    }
-    setActiveTab("persons");
-  };
-  // Update reachedOut status for businesses
-  const handleUpdateBiz = async (name: string, reachedOut: boolean) => {
-    const biz = businesses.find((b) => b.name === name) || {};
-    if (biz.email) {
-      await fetch(`${API_BASE}/prospects`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: biz.email, reachedOut }),
-      });
-      setActiveTab("businesses");
-    }
-  };
-  // Update reachedOut status for persons
-  const handleUpdatePerson = async (name: string, reachedOut: boolean) => {
-    const person = persons.find((p) => p.name === name) || {};
-    if (person.email) {
-      await fetch(`${API_BASE}/persons`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: person.email, reachedOut }),
-      });
-      setActiveTab("persons");
+      // Clear selection and refresh data
+      setPersonSelected([]);
+      setPersonLoading(true);
+      const response = await fetch(`${API_BASE}/persons`);
+      const data = await response.json();
+      setPersons(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error deleting persons:", error);
+      showAlert("Error", "Failed to delete persons. Please try again.");
+    } finally {
+      setPersonLoading(false);
     }
   };
 
@@ -315,7 +353,7 @@ export default function Home() {
         setActiveTab("persons");
       }
     } catch {
-      alert("Upload failed. Please try again.");
+      showAlert("Error", "Upload failed. Please try again.");
     }
   };
 
@@ -334,8 +372,8 @@ export default function Home() {
         />
       </div>
       
-      <div className="terminal-window" style={{ paddingBottom: 64 }}>
-        <header className="terminal-header">AI Outreach Terminal</header>
+      <div className="terminal-window" style={{ paddingBottom: 46 }}>
+        <header className="terminal-header" style={{ padding: "9px 6px", fontSize: "1.5rem" }}>AI Outreach Terminal</header>
         <div
           className="terminal-panel"
           style={{ flex: 1, display: "flex", flexDirection: "column" }}
@@ -343,14 +381,53 @@ export default function Home() {
           {activeTab === "chat" && (
             <>
               <div className="terminal-chat" id="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
-                {messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`chat-bubble ${msg.sender === "user" ? "user-bubble" : "ai-bubble"}`}
-                  >
-                    {msg.text}
-                  </div>
-                ))}
+                {messages.map((msg, idx) => {
+                  const isExpanded = expandedMsgs[idx];
+                  return (
+                    <div
+                      key={idx}
+                      className={`chat-bubble ${msg.sender === "user" ? "user-bubble" : "ai-bubble"}`}
+                      style={{
+                        maxHeight: isExpanded ? undefined : 150,
+                        // overflow: isExpanded ? "visible" : "hidden",
+                        position: "relative",
+                        transition: "max-height 0.2s",
+                        padding:"12px"
+                      }}
+                    >
+                      <div
+                        style={{
+                          WebkitMaskImage: !isExpanded && msg.text.length > 300 ? "linear-gradient(180deg, #000 60%, transparent 100%)" : undefined,
+                          maskImage: !isExpanded && msg.text.length > 300 ? "linear-gradient(180deg, #000 60%, transparent 100%)" : undefined,
+                          overflowWrap: "break-word",
+                          whiteSpace: "pre-line",
+                          // padding:"5/px",
+                        }}
+                      >
+                        {msg.text}
+                      </div>
+                      {!isExpanded && msg.text.length > 300 && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            width: "100%",
+                            textAlign: "center",
+                            background: "linear-gradient(180deg, transparent 60%, #23234a 100%)",
+                            cursor: "pointer",
+                            color: "#4f46e5",
+                            fontWeight: 600,
+                            padding: "8px 0 0 0",
+                          }}
+                          onClick={() => setExpandedMsgs((prev) => ({ ...prev, [idx]: true }))}
+                        >
+                          See more
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {chatLoading && (
                   <div className="terminal-msg ai-msg">
                     <SlidingDotsLoader />
@@ -387,38 +464,52 @@ export default function Home() {
                 <div className="terminal-msg ai-msg">{reportsError}</div>
               )}
               {!reportsLoading && !reportsError && reports.length === 0 && (
-                <div className="terminal-msg ai-msg">No reports found.</div>
+                <div className="terminal-msg ai-msg">No news found.</div>
               )}
               {!reportsLoading && !reportsError && reports.length > 0 && (
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.8em",
-                  }}
-                >
-                  <thead>
-                    <tr
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {reports.map((article: NewsArticle, i) => (
+                    <div
+                      key={i}
                       style={{
-                        color: "#4f46e5",
-                        borderBottom: "1px solid #4f46e5",
+                        border: "1px solid #008069",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        background: "rgba(0, 128, 105, 0.05)",
+                        cursor: "pointer",
+                        transition: "all 0.2s"
                       }}
+                      onClick={() => window.open(article.url, '_blank')}
                     >
-                      {Object.keys(reports[0]).map((key) => (
-                        <th key={key}>{key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reports.map((row, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid #23234a" }}>
-                        {Object.values(row).map((val, j) => (
-                          <td key={j}>{String(val)}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      <h3 style={{ 
+                        margin: "0 0 8px 0", 
+                        color: "#008069",
+                        fontSize: "1em",
+                        fontWeight: "600"
+                      }}>
+                        {article.title}
+                      </h3>
+                      <p style={{ 
+                        margin: "0 0 12px 0", 
+                        color: "#e9edef",
+                        fontSize: "0.8em",
+                        lineHeight: "1.2"
+                      }}>
+                        {article.description}
+                      </p>
+                      <div style={{ 
+                        display: "flex", 
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "0.8em",
+                        color: "#667781"
+                      }}>
+                        <span>📰 {article.source}</span>
+                        <span>📅 {new Date(article.publishedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -433,180 +524,213 @@ export default function Home() {
                 <div className="terminal-msg ai-msg">{bizError}</div>
               )}
 
-              {/* Search with more space */}
-              <div style={{ marginBottom: 20 }}>
+              {/* WhatsApp-style header with search icon */}
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                padding: "8px 10px",
+                borderBottom: "1px solid #2a3942",
+                gap: "8px",
+                background: "#202c33",
+                minHeight: 36
+              }}>
+                <div style={{ 
+                  width: "32px", 
+                  height: "32px", 
+                  borderRadius: "50%", 
+                  background: "#008069",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white"
+                }}>
+                  <Building2 size={16} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "#e9edef", fontWeight: "600", fontSize: "13px" }}>
+                    Enterprise Contacts
+                  </div>
+                  <div style={{ color: "#667781", fontSize: "11px" }}>
+                    {filteredBusinesses.length} businesses
+                  </div>
+                </div>
                 <input
                   className="terminal-input"
-                  style={{ width: "100%", padding: "12px 16px" }}
+                  style={{ 
+                    width: "120px", 
+                    padding: "4px 8px", 
+                    fontSize: "11px",
+                    background: "#2a3942",
+                    border: "1px solid #008069",
+                    borderRadius: "4px",
+                    color: "#e9edef"
+                  }}
                   type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={businessSearch}
+                  onChange={(e) => setBusinessSearch(e.target.value)}
                   placeholder="Search businesses..."
                   disabled={bizLoading}
                 />
-              </div>
-
-              {/* Table with smaller font - scrollable */}
-              <div style={{ flex: 1, overflow: "auto", marginBottom: 20, maxHeight: "400px" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.8em",
-                  }}
-                >
-                <thead>
-                  <tr
-                    style={{
-                      color: "#4f46e5",
-                      borderBottom: "1px solid #4f46e5",
-                    }}
-                  >
-                    <th style={{ padding: "12px 8px" }}></th>
-                    <th style={{ padding: "12px 8px" }}>Name</th>
-                    <th style={{ padding: "12px 8px" }}>Email</th>
-                    <th style={{ padding: "12px 8px" }}>Phone</th>
-                    <th style={{ padding: "12px 8px" }}>Social</th>
-                    <th style={{ padding: "12px 8px" }}>Connected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBusinesses.map((biz) => {
-                    const b = biz as ContactRecord;
-                    return (
-                      <tr
-                        key={b.email || b.name}
-                        style={{ borderBottom: "1px solid #23234a" }}
-                      >
-                        <td style={{ padding: "8px" }}>
-                          <input
-                            type="checkbox"
-                            checked={selected.includes(b.name || "")}
-                            onChange={() => handleSelect(b.name || "")}
-                            disabled={bizLoading}
-                          />
-                        </td>
-                        <td style={{ padding: "8px" }}>{b.name}</td>
-                        <td style={{ padding: "8px" }}>{b.email}</td>
-                        <td style={{ padding: "8px" }}>{b.phone}</td>
-                        <td style={{ padding: "8px" }}>{b.social}</td>
-                        <td style={{ padding: "8px" }}>
-                          <button
-                            className="terminal-btn"
-                            type="button"
-                            onClick={() =>
-                              handleUpdateBiz(
-                                b.name || "",
-                                !(b.reachedOut === "true")
-                              )
-                            }
-                          >
-                            {b.reachedOut === "true" ? (
-                              <>
-                                <Link2 size={16} style={{ color: "#10b981" }} />
-                              </>
-                            ) : (
-                              <>
-                                <Link2Off
-                                  size={16}
-                                  style={{ color: "#ef4444" }}
-                                />
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "nowrap",
-                }}
-              >
                 <button
                   className="terminal-btn"
                   style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
+                    padding: "4px",
+                    borderRadius: "50%",
+                    width: "32px",
+                    height: "32px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
+                    justifyContent: "center"
+                  }}
+                  onClick={() => setShowAddBizModal(true)}
+                  title="Add Business"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+
+              {/* WhatsApp-style chat list */}
+              <div style={{ flex: 1, overflow: "auto" }}>
+                {filteredBusinesses.map((biz) => {
+                  const b = biz as ContactRecord;
+                  return (
+                    <div
+                      key={b.email || b.name}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "8px 10px",
+                        borderBottom: "1px solid #2a3942",
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#202c33"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ 
+                        width: "36px", 
+                        height: "36px", 
+                        borderRadius: "50%", 
+                        background: "#008069",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontSize: "14px",
+                        marginRight: "8px"
+                      }}>
+                        <Building2 size={16} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#e9edef", fontWeight: "500", fontSize: "13px" }}>
+                          {b.name}
+                        </div>
+                        <div style={{ color: "#667781", fontSize: "12px" }}>
+                          {b.email}
+                        </div>
+                        {b.phone && (
+                          <div style={{ color: "#667781", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                            <Phone size={10} />
+                            {b.phone}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ 
+                        display: "flex", 
+                        flexDirection: "column", 
+                        alignItems: "center",
+                        gap: "2px"
+                      }}>
+                        {b.reachedOut === "true" ? (
+                          <div style={{ color: "#008069", fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
+                            <Link2 size={10} />
+                            Contacted
+                          </div>
+                        ) : (
+                          <div style={{ color: "#667781", fontSize: "10px" }}>New</div>
+                        )}
+                        <button
+                          className="terminal-btn"
+                          style={{
+                            padding: "2px 6px",
+                            fontSize: "10px",
+                            borderRadius: "10px",
+                            background: "#008069",
+                            color: "white",
+                            border: "none",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "2px"
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (b.email) {
+                              fetch(`${API_BASE}/outreach`, { 
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ email: b.email })
+                              });
+                              showAlert("Success", `AI outreach triggered for ${b.name}`);
+                            }
+                          }}
+                        >
+                          <Mail size={10} />
+                          Email
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{
+                padding: "8px 10px",
+                borderTop: "1px solid #2a3942",
+                display: "flex",
+                gap: "6px",
+                justifyContent: "space-between"
+              }}>
+                <button
+                  className="terminal-btn"
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                    background: "#008069",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
                   }}
                   disabled={selected.length === 0 || bizLoading}
                   onClick={async () => {
                     if (selected.length > 0) {
                       await fetch(`${API_BASE}/outreach`, { method: "POST" });
-                      alert("Outreach (email) triggered for all businesses.");
+                      showAlert("Success", "Outreach (email) triggered for all businesses.");
                     }
                   }}
                 >
-                  <Mail size={20} />{" "}
+                  <Mail size={12} /> Bulk Email
                 </button>
                 <button
                   className="terminal-btn"
                   style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
+                    gap: 3,
+                    background: "#f15c6d",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
                   }}
-                  disabled={selected.length === 0 || bizLoading}
-                  onClick={() => {
-                    const phones = selected
-                      .map((n) => {
-                        const b = businesses.find((bz) => bz.name === n) || {};
-                        return b.phone;
-                      })
-                      .filter(Boolean);
-                    alert("Call these numbers:\n" + phones.join("\n"));
-                  }}
-                >
-                  <Phone size={20} />
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                  disabled={selected.length === 0 || bizLoading}
-                  onClick={() => {
-                    const socials = selected
-                      .map((n) => {
-                        const b = businesses.find((bz) => bz.name === n) || {};
-                        return b.social;
-                      })
-                      .filter(Boolean);
-                    alert("Chat on social (Instagram):\n" + socials.join("\n"));
-                  }}
-                >
-                  <MessageCircle size={20} />
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
                   onClick={handleDeleteBiz}
                   disabled={selected.length === 0 || bizLoading}
                 >
-                  <Trash2 size={20} /> ({selected.length})
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                  onClick={() => setShowAddBizModal(true)}
-                >
-                  <Plus size={16} /> Add
+                  <Trash2 size={12} /> Delete ({selected.length})
                 </button>
                 <input
                   ref={bizFileInputRef}
@@ -619,10 +743,20 @@ export default function Home() {
                 />
                 <button
                   className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                    background: "#667781",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
+                  }}
                   onClick={() => bizFileInputRef.current?.click()}
                 >
-                  <Upload size={16} /> Upload CSV
+                  <Upload size={12} /> Import
                 </button>
               </div>
             </div>
@@ -638,197 +772,212 @@ export default function Home() {
                 <div className="terminal-msg ai-msg">{personError}</div>
               )}
 
-              {/* Search with more space */}
-              <div style={{ marginBottom: 20 }}>
-                <input
-                  className="terminal-input"
-                  style={{ width: "100%", padding: "12px 16px" }}
-                  type="text"
-                  value={personSearch}
-                  onChange={(e) => setPersonSearch(e.target.value)}
-                  placeholder="Search persons..."
-                  disabled={personLoading}
-                />
-              </div>
-
-              {/* Table with smaller font - scrollable */}
-              <div style={{ flex: 1, overflow: "auto", marginBottom: 20, maxHeight: "400px" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.8em",
-                  }}
-                >
-                <thead>
-                  <tr
-                    style={{
-                      color: "#4f46e5",
-                      borderBottom: "1px solid #4f46e5",
-                    }}
-                  >
-                    <th style={{ padding: "12px 8px" }}></th>
-                    <th style={{ padding: "12px 8px" }}>Name</th>
-                    <th style={{ padding: "12px 8px" }}>Email</th>
-                    <th style={{ padding: "12px 8px" }}>Phone</th>
-                    <th style={{ padding: "12px 8px" }}>Social</th>
-                    <th style={{ padding: "12px 8px" }}>connected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPersons.map((person) => {
-                    return (
-                      <tr
-                        key={person.email || person.name}
-                        style={{ borderBottom: "1px solid #23234a" }}
-                      >
-                        <td style={{ padding: "8px" }}>
-                          <input
-                            type="checkbox"
-                            checked={personSelected.includes(person.name || "")}
-                            onChange={() =>
-                              handlePersonSelect(person.name || "")
-                            }
-                            disabled={personLoading}
-                          />
-                        </td>
-                        <td style={{ padding: "8px" }}>{person.name}</td>
-                        <td style={{ padding: "8px" }}>{person.email}</td>
-                        <td style={{ padding: "8px" }}>{person.phone}</td>
-                        <td style={{ padding: "8px" }}>{person.social}</td>
-                        <td style={{ padding: "8px" }}>
-                          <button
-                            className="terminal-btn"
-                            type="button"
-                            onClick={() =>
-                              handleUpdatePerson(
-                                person.name || "",
-                                !(person.reachedOut === "true")
-                              )
-                            }
-                          >
-                            {person.reachedOut === "true" ? (
-                              <>
-                                <Link2 size={16} style={{ color: "#10b981" }} />
-                              </>
-                            ) : (
-                              <>
-                                <Link2Off
-                                  size={16}
-                                  style={{ color: "#ef4444" }}
-                                />
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
+              {/* WhatsApp-style header with search icon */}
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                padding: "8px 10px",
+                borderBottom: "1px solid #2a3942",
+                gap: "8px",
+                background: "#202c33",
+                minHeight: 36
+              }}>
+                <div style={{ 
+                  width: "32px", 
+                  height: "32px", 
+                  borderRadius: "50%", 
+                  background: "#008069",
                   display: "flex",
-                  gap: 8,
-                  flexWrap: "nowrap",
-                }}
-              >
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white"
+                }}>
+                  <Users size={16} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "#e9edef", fontWeight: 600, fontSize: "13px" }}>
+                    People Contacts
+                  </div>
+                  <div style={{ color: "#667781", fontSize: "11px" }}>
+                    {filteredPersons.length} people
+                  </div>
+                </div>
                 <button
                   className="terminal-btn"
                   style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
+                    padding: "4px",
+                    borderRadius: "50%",
+                    width: "32px",
+                    height: "32px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
+                    justifyContent: "center"
+                  }}
+                  onClick={() => setShowAddPersonModal(true)}
+                  title="Add Person"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+
+              {/* WhatsApp-style chat list for persons */}
+              <div style={{ flex: 1, overflow: "auto" }}>
+                {filteredPersons.map((p) => (
+                  <div
+                    key={p.email || p.name}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #2a3942",
+                      cursor: "pointer",
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#202c33"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <div style={{ 
+                      width: "36px", 
+                      height: "36px", 
+                      borderRadius: "50%", 
+                      background: "#008069",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "white",
+                      fontSize: "14px",
+                      marginRight: "8px"
+                    }}>
+                      <Users size={16} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: "#e9edef", fontWeight: 500, fontSize: "13px" }}>
+                        {p.name}
+                      </div>
+                      <div style={{ color: "#667781", fontSize: "12px" }}>
+                        {p.email}
+                      </div>
+                      {p.phone && (
+                        <div style={{ color: "#667781", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                          <Phone size={10} />
+                          {p.phone}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                      {p.reachedOut === "true" ? (
+                        <div style={{ color: "#008069", fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
+                          <Link2 size={10} /> Contacted
+                        </div>
+                      ) : (
+                        <div style={{ color: "#667781", fontSize: "10px" }}>New</div>
+                      )}
+                      <button
+                        className="terminal-btn"
+                        style={{
+                          padding: "2px 6px",
+                          fontSize: "10px",
+                          borderRadius: "10px",
+                          background: "#008069",
+                          color: "white",
+                          border: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "2px"
+                        }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (p.email) {
+                            fetch(`${API_BASE}/outreach`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ email: p.email })
+                            });
+                            showAlert("Success", `AI outreach triggered for ${p.name}`);
+                          }
+                        }}
+                      >
+                        <Mail size={10} /> Email
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{
+                padding: "8px 10px",
+                borderTop: "1px solid #2a3942",
+                display: "flex",
+                gap: "6px",
+                justifyContent: "space-between"
+              }}>
+                <button
+                  className="terminal-btn"
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                    background: "#008069",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
                   }}
                   disabled={personSelected.length === 0 || personLoading}
                   onClick={async () => {
                     if (personSelected.length > 0) {
                       await fetch(`${API_BASE}/outreach`, { method: "POST" });
-                      alert("Outreach (email) triggered for all persons.");
+                      showAlert("Success", "Outreach (email) triggered for all persons.");
                     }
                   }}
                 >
-                  <Mail size={20} />{" "}
+                  <Mail size={12} /> Bulk Email
                 </button>
                 <button
                   className="terminal-btn"
                   style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
+                    gap: 3,
+                    background: "#f15c6d",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
                   }}
-                  disabled={personSelected.length === 0 || personLoading}
-                  onClick={() => {
-                    const phones = personSelected
-                      .map((n) => {
-                        const p = persons.find((pz) => pz.name === n) || {};
-                        return p.phone;
-                      })
-                      .filter(Boolean);
-                    alert("Call these numbers:\n" + phones.join("\n"));
-                  }}
-                >
-                  <Phone size={20} />
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{
-                    fontSize: "0.8rem",
-                    padding: "6px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                  disabled={personSelected.length === 0 || personLoading}
-                  onClick={() => {
-                    const socials = personSelected
-                      .map((n) => {
-                        const p = persons.find((pz) => pz.name === n) || {};
-                        return p.social;
-                      })
-                      .filter(Boolean);
-                    alert("Chat on social (Instagram):\n" + socials.join("\n"));
-                  }}
-                >
-                  <MessageCircle size={20} />
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
                   onClick={handleDeletePerson}
                   disabled={personSelected.length === 0 || personLoading}
                 >
-                  <Trash2 size={20} /> ({personSelected.length})
-                </button>
-                <button
-                  className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                  onClick={() => setShowAddPersonModal(true)}
-                >
-                  <Plus size={16} /> Add
+                  <Trash2 size={12} /> Delete ({personSelected.length})
                 </button>
                 <input
                   ref={personFileInputRef}
                   type="file"
                   accept=".csv"
                   style={{ display: "none" }}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleFileSelect(e.target.files?.[0] || null, "person")
                   }
                 />
                 <button
                   className="terminal-btn"
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "4px 8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                    background: "#667781",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px"
+                  }}
                   onClick={() => personFileInputRef.current?.click()}
                 >
-                  <Upload size={16} /> Upload CSV
+                  <Upload size={12} /> Import
                 </button>
               </div>
             </div>
@@ -861,17 +1010,17 @@ export default function Home() {
             </div>
           )}
         </div>
-        <nav className="terminal-tabs">
+        <nav className="terminal-tabs" style={{ padding: "6px 0", minHeight: "36px" }}>
           {TABS.map((tab) => (
             <button
               key={tab.key}
-              className={`terminal-tab${
-                activeTab === tab.key ? " active" : ""
-              }`}
+              className={`terminal-tab${activeTab === tab.key ? " active" : ""}`}
               onClick={() => setActiveTab(tab.key)}
               type="button"
+              title={tab.name}
+              style={{ padding: "3px 7px", fontSize: "17px" }}
             >
-              {tab.label}
+              {tab.name}
             </button>
           ))}
         </nav>
@@ -1011,6 +1160,48 @@ export default function Home() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Modal */}
+      {showAlertModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowAlertModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ 
+              marginBottom: 20, 
+              color: alertTitle === "Error" ? "#ef4444" : "#10b981",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}>
+              {alertTitle === "Error" ? "❌" : "✅"} {alertTitle}
+            </h3>
+            <p style={{ 
+              marginBottom: 20, 
+              color: "#e9edef",
+              lineHeight: "1.5"
+            }}>
+              {alertMessage}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                className="terminal-btn"
+                onClick={() => setShowAlertModal(false)}
+                style={{
+                  background: alertTitle === "Error" ? "#ef4444" : "#10b981",
+                  color: "white",
+                  border: "none",
+                  padding: "8px 16px",
+                  borderRadius: "6px"
+                }}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}
