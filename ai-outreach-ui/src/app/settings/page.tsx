@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import jwt_decode from "jwt-decode";
 
 export default function SettingsPage() {
   const [email, setEmail] = useState("");
@@ -11,12 +12,22 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<{ email: string; name?: string; picture?: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("jwt");
     if (token) {
       setLoggedIn(true);
       fetchGmailStatus(token);
+      // Try to decode profile info from JWT
+      try {
+        const decoded = jwt_decode(token);
+        setProfile({
+          email: decoded.email,
+          name: decoded.name,
+          picture: decoded.picture,
+        });
+      } catch {}
     }
   }, []);
 
@@ -94,6 +105,18 @@ export default function SettingsPage() {
               <span className="font-semibold text-[#2D2A32]">Logged in as {email}</span>
               <button onClick={handleLogout} className="text-xs text-red-500 underline">Logout</button>
             </div>
+            {/* Profile Info Section */}
+            {profile && (
+              <div className="flex items-center gap-4 mt-2 p-2 bg-[#FFE6A7] rounded">
+                {profile.picture && (
+                  <img src={profile.picture} alt="Profile" className="w-12 h-12 rounded-full border" />
+                )}
+                <div>
+                  <div className="font-semibold text-[#2D2A32]">{profile.name || "No Name"}</div>
+                  <div className="text-xs text-gray-600">{profile.email}</div>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-4">
               <span className="font-semibold text-[#2D2A32]">Gmail:</span>
               {gmailConnected ? (
