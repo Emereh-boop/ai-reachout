@@ -5,7 +5,7 @@ import { composeEmail } from '../services/emailComposer';
 import { sendEmail } from '../services/emailSender';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { io } from '../src/api/index';
+import { io } from '../api/index';
 dotenv.config();
 
 function daysBetween(date1: Date, date2: Date) {

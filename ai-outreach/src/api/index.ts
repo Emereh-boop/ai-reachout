@@ -1,8 +1,8 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import { enrichProspects } from "../../scripts/importProspects";
-import { runOutreach } from "../../scripts/runOutreach";
+import { enrichProspects } from "../scripts/importProspects";
+import { runOutreach } from "../scripts/runOutreach";
 import {
   generateProspectsWithAI,
   enrichProspects as enrichProspectsFromScript,
@@ -10,10 +10,10 @@ import {
   // Add this import:
   // @ts-ignore
   validateProspects as validateProspectsFromScript,
-} from "../../scripts/generateProspects";
-import { sendEmail } from "../../services/emailSender";
-import { businessApiService } from "../../services/businessApi";
-import { firecrawlService } from "../../services/firecrawlService";
+} from "../scripts/generateProspects";
+import { sendEmail } from "../services/emailSender";
+import { businessApiService } from "../services/businessApi";
+import { firecrawlService } from "../services/firecrawlService";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { GoogleGenerativeAI } from "@google/generative-ai";
