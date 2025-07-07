@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node src/api/index.ts",
+    "start": "node --max-old-space-size=1024 dist/api/index.js",
     "go": "ts-node src/api/index.ts",
     "imp": "ts-node scripts/importProspects.ts",
     "out": "ts-node scripts/runOutreach.ts",
