@@ -21,7 +21,8 @@ export default function SettingsPage() {
       fetchGmailStatus(token);
       // Try to decode profile info from JWT
       try {
-        const decoded = jwtDecode(token);
+        type MyJwtPayload = { email: string; name?: string; picture?: string };
+        const decoded = jwtDecode<MyJwtPayload>(token);
         setProfile({
           email: decoded.email,
           name: decoded.name,
