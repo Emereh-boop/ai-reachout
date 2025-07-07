@@ -1,29 +1,109 @@
-name: ai-outrich-agent
-description: >
-  Automate personalized email outreach to local businesses using free-tier tools.
-  Steps: import prospects, enrich data, compose emails with OpenAI, send via Gmail SMTP.
+name: OmniFlow AI
+description: An intelligent, centralized AI platform for e-commerce businesses designed to automate workflows, enhance customer experience, and streamline operations across various channels.
+version: 1.0.0
+author: Your AI Assistant
 
-project_directories:
-  - /scripts
-  - /services
-  - /
+goals:
+  - Speed up e-commerce turnovers by optimizing operational efficiency.
+  - Improve customer satisfaction through proactive and reactive omnichannel support.
+  - Reduce manual workload for e-commerce staff across customer service, order fulfillment, and marketing.
+  - Provide actionable insights for dynamic pricing and personalized promotions.
+  - Ensure scalability and adaptability for diverse e-commerce business models.
 
-context_files:
-  - PROJECT_CONTEXT.md
+capabilities:
+  # 1. Omnichannel Customer Engagement & Support
+  - id: customer_care_virtual_agent
+    name: AI Virtual Agent
+    description: Handles inbound calls and chats, providing instant, 24/7 support for common inquiries using Natural Language Understanding (NLU) and sentiment analysis.
+    features:
+      - 24/7 availability
+      - Natural Language Understanding (NLU) for intent recognition
+      - Sentiment analysis for prioritization and response tailoring
+      - Contextual human agent handoff with full conversation history
+      - Multi-language support (configurable)
+      - Supports voice and text interaction methods
+  - id: customer_care_proactive_outreach
+    name: Proactive Customer Outreach
+    description: Initiates outbound communications for key touchpoints to enhance customer experience and drive conversions.
+    features:
+      - Automated abandoned cart recovery (via calls, SMS, email)
+      - Post-purchase satisfaction checks and intelligent cross-selling/upselling offers
+      - Real-time delivery notifications and delay alerts
+  - id: customer_care_unified_inbox
+    name: Unified Customer Inbox
+    description: Centralizes all customer interactions (calls, chats, emails, social media DMs) into a single dashboard for human agents.
+    features:
+      - Consolidated communication channels for a single source of truth
+      - 360-degree customer view with integrated purchase history
+      - Agent assistance tools (e.g., suggested responses, knowledge base integration)
 
-priority_files:
-  - /scripts/importProspects.ts
-  - /services/emailComposer.ts
-  - /services/emailSender.ts
-  - /scripts/runOutreach.ts
+  # 2. Order & Inventory Workflow Automation
+  - id: order_processing_automation
+    name: Automated Order Processing
+    description: Streamlines order fulfillment from placement to delivery, minimizing manual intervention.
+    features:
+      - Smart order routing (optimizing fulfillment center based on stock, location, cost)
+      - Automated shipping label generation
+      - Real-time tracking updates automatically sent to customers
+  - id: inventory_management_automation
+    name: Intelligent Inventory Management
+    description: Maintains optimal stock levels and prevents discrepancies across all sales channels.
+    features:
+      - Real-time inventory synchronization across multiple e-commerce platforms
+      - Predictive reorder alerts and automated purchase order triggers based on demand forecasting
+  - id: fraud_detection
+    name: AI-Powered Fraud Detection
+    description: Identifies and flags suspicious transaction patterns to mitigate financial risk.
+    features:
+      - Anomaly detection in transaction data
+      - Customizable fraud rules and alert thresholds
 
-rules:
-  - Use only free-tier or built-in tools (Gmail SMTP, OpenAI free credits, Node.js fetch)
-  - Preserve logic in existing scripts; refactor only to match context
-  - Document all modules in README.md
-  - Read and update PROJECT_CONTEXT.md for overall goals.
-  - After creating or modifying any module, update README.md with instructions.
-  - Keep code in TypeScript, use async/await.
-  - Do not add paid dependencies or services.
-  - Limit to 20 emails per execution.
+  # 3. Sales & Marketing Optimization
+  - id: dynamic_pricing
+    name: Dynamic Pricing Engine
+    description: Recommends and adjusts product prices in real-time based on market conditions and demand.
+    features:
+      - Competitor pricing analysis
+      - Market trend monitoring and seasonality adjustments
+      - Historical sales data analysis for optimal pricing points
+  - id: personalized_promotions
+    name: Personalized Promotion Engine
+    description: Delivers highly targeted promotions and product recommendations to individual customer segments.
+    features:
+      - Advanced customer segmentation (behavioral, demographic, psychographic)
+      - Tailored discount and offer recommendations
+      - AI-driven product recommendation engine
+  - id: content_generation
+    name: AI Content Generator
+    description: Automates the creation and optimization of product descriptions and marketing copy.
+    features:
+      - SEO-optimized product descriptions from basic inputs
+      - Marketing copy (ads, emails, social media posts) generation
+      - Brand voice and tone consistency enforcement
+      - Multi-language content generation (configurable)
 
+integrations:
+  - type: e-commerce_platforms
+    description: Designed to integrate with major e-commerce platforms (e.g., Shopify, Magento, WooCommerce, BigCommerce, custom solutions) via APIs.
+  - type: crm_systems
+    description: Connects with popular CRM systems (e.g., Salesforce, HubSpot, Zoho CRM) for comprehensive customer data management.
+  - type: shipping_carriers
+    description: Links with various shipping and logistics providers (e.g., FedEx, UPS, DHL, local carriers) for automated fulfillment.
+  - type: accounting_software
+    description: Integrates with accounting and invoicing systems (e.g., QuickBooks, Xero) for financial reconciliation.
+  - type: communication_apis
+    description: Utilizes APIs for voice platforms, SMS gateways, email services, and social media platforms (e.g., Facebook Messenger, Instagram DMs).
+
+universality_and_adaptability:
+  - principle: Modular Architecture
+    description: The system is built with a modular component structure, allowing businesses to select and deploy only the features relevant to their specific needs, enabling flexible scaling.
+  - principle: Configurable Workflows
+    description: All automation rules and operational workflows are highly configurable via a user-friendly interface, enabling businesses to define and adapt processes without coding.
+  - principle: Data Agnostic Processing
+    description: Designed to ingest, process, and learn from diverse data structures and formats, making it inherently adaptable to different e-commerce verticals (e.g., fashion, electronics, food) and product types.
+  - principle: API-First Design Philosophy
+    description: Emphasizes an API-first development approach to ensure seamless and robust integration with a wide array of third-party tools, legacy systems, and proprietary software.
+  - principle: Customizable AI Models
+    description: AI models can be fine-tuned or retrained with specific business data, allowing for improved performance, accuracy, and relevance for niche markets, unique customer bases, or evolving business strategies.
+  - principle: Multi-Channel Input/Output Flexibility
+    description: Capable of processing and generating responses across various communication channels (voice, text chat, email, social media direct messages) and adapting to channel-specific nuances.

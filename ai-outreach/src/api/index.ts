@@ -1,9 +1,6 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import fs from "fs";
-import { parse } from "csv-parse";
-import { stringify } from "csv-stringify";
 import { enrichProspects } from "../../scripts/importProspects";
 import { runOutreach } from "../../scripts/runOutreach";
 import {
@@ -26,6 +23,7 @@ import path from "path";
 import { google } from "googleapis";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import Database from "better-sqlite3";
 dotenv.config();
 
 const app = express();
@@ -56,23 +54,16 @@ const io = new SocketIOServer(server, {
 
 app.get("/", (req, res) => res.send("Unified API is running"));
 
-// GET /prospects - return all prospects from prospects.csv
+// GET /prospects - return all prospects from SQLite
+const db = new Database("data.db");
+db.pragma('journal_mode = WAL');
 app.get("/prospects", (req, res) => {
-  if (!fs.existsSync("scripts/prospects.csv")) return res.json([]);
-  const prospects: any[] = [];
-  fs.createReadStream("scripts/prospects.csv")
-    .pipe(
-      parse({
-        columns: true,
-        trim: true,
-        relax_column_count: true,
-        skip_empty_lines: true,
-        relax_quotes: true,
-      })
-    )
-    .on("data", (row) => prospects.push(row))
-    .on("end", () => res.json(prospects))
-    .on("error", (err) => res.status(500).json({ error: String(err) }));
+  try {
+    const prospects = db.prepare("SELECT * FROM prospects").all();
+    res.json(prospects);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // POST /prospects - add a new prospect (JSON body)
@@ -80,24 +71,25 @@ app.post("/prospects", (req, res) => {
   const newProspect = req.body;
   if (!newProspect || !newProspect.email)
     return res.status(400).json({ error: "Missing prospect data or email" });
-  const prospects = readProspectsJSON();
-  if (prospects.find((p: any) => p.email === newProspect.email)) {
-    return res
-      .status(400)
-      .json({ error: "Prospect with this email already exists" });
+  try {
+    const exists = db.prepare("SELECT 1 FROM prospects WHERE email = ?").get(newProspect.email);
+    if (exists) {
+      return res.status(400).json({ error: "Prospect with this email already exists" });
+    }
+    db.prepare(`INSERT INTO prospects (name, email, phone, social, website, title, description, category, tags, companySize, inferredIntent, emailPrompt, reachedOut) VALUES (@name, @email, @phone, @social, @website, @title, @description, @category, @tags, @companySize, @inferredIntent, @emailPrompt, @reachedOut)`).run(newProspect);
+    res.json({ status: "ok", prospect: newProspect });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-  prospects.push(newProspect);
-  writeProspectsJSON(prospects);
-  res.json({ status: "ok", prospect: newProspect });
 });
 
 // POST /enrich - run enrichment on all prospects in JSON
 app.post("/enrich", async (req, res) => {
   try {
-    const prospects = readProspectsJSON();
-    // Enrich all prospects (simulate enrichment for now)
-    const enrichedProspects = prospects.map((p: any) => ({ ...p, enriched: true }));
-    writeProspectsJSON(enrichedProspects);
+    const prospects = db.prepare("SELECT * FROM prospects").all() as Prospect[];
+    for (const prospect of prospects) {
+      db.prepare("UPDATE prospects SET enriched = ? WHERE email = ?").run(true, prospect.email);
+    }
     res.json({ status: "enriched" });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -174,88 +166,96 @@ app.post("/generate-prospects", async (req, res) => {
   }
 });
 
-const RESULTS_JSON = path.join(__dirname, "../../scripts/results.json");
-function readResultsJSON() {
-  if (!fs.existsSync(RESULTS_JSON)) return [];
-  const data = fs.readFileSync(RESULTS_JSON, "utf-8");
-  try {
-    return JSON.parse(data);
-  } catch (e) {
-    return [];
-  }
-}
-
-// GET /results - return all results from results.json
+// GET /results - return all results from SQLite
+db.pragma('journal_mode = WAL');
 app.get("/results", (req, res) => {
-  const results = readResultsJSON();
-  res.json(results);
+  try {
+    const results = db.prepare("SELECT * FROM results").all();
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-// Add confirmation endpoint
-app.get("/api/confirm-interest", (req, res) => {
+// TypeScript interfaces
+interface Prospect {
+  id?: number;
+  name?: string;
+  email: string;
+  phone?: string;
+  social?: string;
+  website?: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  tags?: string;
+  companySize?: string;
+  inferredIntent?: string;
+  emailPrompt?: string;
+  reachedOut?: string;
+  enriched?: boolean;
+}
+
+interface Result {
+  id?: number;
+  business?: string;
+  email: string;
+  status?: string;
+  error?: string;
+  subject?: string;
+  timestamp?: string;
+  confirmed?: string;
+  token?: string;
+}
+
+interface Person {
+  id?: number;
+  name?: string;
+  email: string;
+  phone?: string;
+  social?: string;
+  title?: string;
+  company?: string;
+  description?: string;
+  category?: string;
+  tags?: string;
+  companySize?: string;
+  inferredIntent?: string;
+  emailPrompt?: string;
+  reachedOut?: string;
+}
+
+// /api/confirm-interest using SQLite
+app.get("/api/confirm-interest", (req: Request, res: Response) => {
   const { email, token } = req.query;
   if (!email || !token) {
     return res.status(400).send("<h2>Invalid confirmation link.</h2>");
   }
-  if (!fs.existsSync("results.csv")) {
-    return res.status(404).send("<h2>No outreach results found.</h2>");
+  const result = db.prepare("SELECT * FROM results WHERE email = ?").get(email) as Result | undefined;
+  if (!result) {
+    return res.status(404).send("<h2>Prospect not found.</h2>");
   }
-  const results: any[] = [];
-  fs.createReadStream("results.csv")
-    .pipe(parse({ columns: true, trim: true }))
-    .on("data", (row) => results.push(row))
-    .on("end", () => {
-      const idx = results.findIndex((r) => r.email === email);
-      if (idx === -1) {
-        return res.status(404).send("<h2>Prospect not found.</h2>");
-      }
-      if (results[idx].confirmed === "true") {
-        return res.send(
-          "<h2>Thank you! Your interest has already been confirmed. We will be in touch soon.</h2>"
-        );
-      }
-      if (results[idx].token !== token) {
-        return res
-          .status(400)
-          .send("<h2>Invalid or expired confirmation link.</h2>");
-      }
-      results[idx].confirmed = "true";
-      // Write back to results.csv
-      stringify(
-        results,
-        { header: true, quoted: true, quoted_empty: true },
-        (err: any, output: any) => {
-          if (err) {
-            return res
-              .status(500)
-              .send(
-                "<h2>Failed to update confirmation. Please try again later.</h2>"
-              );
-          }
-          fs.writeFileSync("results.csv", output);
-          res.send(
-            "<h2>Thank you for confirming your interest! We will contact you to schedule a meeting or chat.</h2>"
-          );
-        }
-      );
-    })
-    .on("error", (err: any) => {
-      res
-        .status(500)
-        .send(
-          "<h2>Failed to process confirmation. Please try again later.</h2>"
-        );
-    });
+  if (result.confirmed === "true") {
+    return res.send("<h2>Thank you! Your interest has already been confirmed. We will be in touch soon.</h2>");
+  }
+  if (result.token !== token) {
+    return res.status(400).send("<h2>Invalid or expired confirmation link.</h2>");
+  }
+  db.prepare("UPDATE results SET confirmed = 'true' WHERE email = ?").run(email);
+  res.send("<h2>Thank you for confirming your interest! We will contact you to schedule a meeting or chat.</h2>");
 });
 
 // DELETE /prospects - remove a prospect by email
 app.delete("/prospects", (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required" });
-  const prospects = readProspectsJSON();
-  const filtered = prospects.filter((p: any) => p.email !== email);
-  writeProspectsJSON(filtered);
-  res.json({ status: "removed", prospects: filtered });
+  try {
+    db.prepare("DELETE FROM prospects WHERE email = ?").run(email);
+    const prospects = db.prepare("SELECT * FROM prospects").all();
+    res.json({ status: "removed", prospects });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // PATCH /prospects - update a prospect's reachedOut/closed status by email
@@ -264,12 +264,14 @@ app.patch("/prospects", (req, res) => {
   if (!email) return res.status(400).json({ error: "Email is required" });
   if (typeof reachedOut === "undefined")
     return res.status(400).json({ error: "reachedOut is required" });
-  const prospects = readProspectsJSON();
-  const idx = prospects.findIndex((p: any) => p.email === email);
-  if (idx === -1) return res.status(404).json({ error: "Prospect not found" });
-  prospects[idx].reachedOut = String(reachedOut);
-  writeProspectsJSON(prospects);
-  res.json({ status: "updated", prospects });
+  try {
+    const result = db.prepare("UPDATE prospects SET reachedOut = ? WHERE email = ?").run(String(reachedOut), email);
+    if (result.changes === 0) return res.status(404).json({ error: "Prospect not found" });
+    const prospects = db.prepare("SELECT * FROM prospects").all();
+    res.json({ status: "updated", prospects });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // WebSocket test endpoint
@@ -277,63 +279,45 @@ app.get("/ws-test", (req, res) => {
   res.send("WebSocket server is running.");
 });
 
-// GET /persons - return all persons from persons.csv
+// GET /persons - return all persons from SQLite
+db.pragma('journal_mode = WAL');
 app.get("/persons", (req, res) => {
-  if (!fs.existsSync("scripts/persons.csv")) {
-    return res.json([]);
+  try {
+    const persons = db.prepare("SELECT * FROM persons").all();
+    res.json(persons);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-  const persons: any[] = [];
-  fs.createReadStream("scripts/persons.csv")
-    .pipe(
-      parse({
-        columns: true,
-        trim: true,
-        relax_column_count: true,
-        skip_empty_lines: true,
-        relax_quotes: true,
-      })
-    )
-    .on("data", (row) => {
-      persons.push(row);
-    })
-    .on("end", () => {
-      res.json(persons);
-    })
-    .on("error", (err) => {
-      res.status(500).json({ error: String(err) });
-    });
 });
 
-// POST /persons - upload a new persons.csv
-app.post("/persons", upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  fs.renameSync(req.file.path, "scripts/persons.csv");
-  res.json({ status: "ok" });
+// POST /persons - add a new person (JSON body)
+app.post("/persons", (req, res) => {
+  const newPerson = req.body;
+  if (!newPerson || !newPerson.email)
+    return res.status(400).json({ error: "Missing person data or email" });
+  try {
+    const exists = db.prepare("SELECT 1 FROM persons WHERE email = ?").get(newPerson.email);
+    if (exists) {
+      return res.status(400).json({ error: "Person with this email already exists" });
+    }
+    db.prepare(`INSERT INTO persons (name, email, phone, social, title, company, description, category, tags, companySize, inferredIntent, emailPrompt, reachedOut) VALUES (@name, @email, @phone, @social, @title, @company, @description, @category, @tags, @companySize, @inferredIntent, @emailPrompt, @reachedOut)`).run(newPerson);
+    res.json({ status: "ok", person: newPerson });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // DELETE /persons - remove a person by email
 app.delete("/persons", (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required" });
-  if (!fs.existsSync("scripts/persons.csv"))
-    return res.status(404).json({ error: "No persons file found" });
-  const persons: any[] = [];
-  fs.createReadStream("scripts/persons.csv")
-    .pipe(parse({ columns: true, trim: true }))
-    .on("data", (row) => persons.push(row))
-    .on("end", () => {
-      const filtered = persons.filter((p) => p.email !== email);
-      stringify(
-        filtered,
-        { header: true, quoted: true, quoted_empty: true },
-        (err, output) => {
-          if (err) return res.status(500).json({ error: String(err) });
-          fs.writeFileSync("scripts/persons.csv", output);
-          res.json({ status: "removed", persons: filtered });
-        }
-      );
-    })
-    .on("error", (err) => res.status(500).json({ error: String(err) }));
+  try {
+    db.prepare("DELETE FROM persons WHERE email = ?").run(email);
+    const persons = db.prepare("SELECT * FROM persons").all();
+    res.json({ status: "removed", persons });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // PATCH /persons - update a person's reachedOut/closed status by email
@@ -342,28 +326,14 @@ app.patch("/persons", (req, res) => {
   if (!email) return res.status(400).json({ error: "Email is required" });
   if (typeof reachedOut === "undefined")
     return res.status(400).json({ error: "reachedOut is required" });
-  if (!fs.existsSync("scripts/persons.csv"))
-    return res.status(404).json({ error: "No persons file found" });
-  const persons: any[] = [];
-  fs.createReadStream("scripts/persons.csv")
-    .pipe(parse({ columns: true, trim: true }))
-    .on("data", (row) => persons.push(row))
-    .on("end", () => {
-      const idx = persons.findIndex((p) => p.email === email);
-      if (idx === -1)
-        return res.status(404).json({ error: "Person not found" });
-      persons[idx].reachedOut = String(reachedOut);
-      stringify(
-        persons,
-        { header: true, quoted: true, quoted_empty: true },
-        (err, output) => {
-          if (err) return res.status(500).json({ error: String(err) });
-          fs.writeFileSync("scripts/persons.csv", output);
-          res.json({ status: "updated", persons });
-        }
-      );
-    })
-    .on("error", (err) => res.status(500).json({ error: String(err) }));
+  try {
+    const result = db.prepare("UPDATE persons SET reachedOut = ? WHERE email = ?").run(String(reachedOut), email);
+    if (result.changes === 0) return res.status(404).json({ error: "Person not found" });
+    const persons = db.prepare("SELECT * FROM persons").all();
+    res.json({ status: "updated", persons });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Add CORS middleware for dev and prod
@@ -542,56 +512,28 @@ app.get("/news", async (req, res) => {
   }
 });
 
-const PROSPECTS_JSON = path.join(__dirname, "../../scripts/prospects.json");
-
-function readProspectsJSON() {
-  if (!fs.existsSync(PROSPECTS_JSON)) return [];
-  const data = fs.readFileSync(PROSPECTS_JSON, "utf-8");
-  try {
-    return JSON.parse(data);
-  } catch (e) {
-    return [];
-  }
-}
-
-function writeProspectsJSON(prospects: any[]) {
-  fs.writeFileSync(PROSPECTS_JSON, JSON.stringify(prospects, null, 2), "utf-8");
-}
-
 // GET /search-businesses - search businesses by criteria
 app.get("/search-businesses", async (req, res) => {
   try {
     const { query, location, industry, companySize, limit = 20 } = req.query;
-
-    let results: any[] = [];
-
-    // Search existing prospects from JSON
-    const existingProspects: any[] = readProspectsJSON();
-    const filtered = existingProspects.filter((prospect) => {
+    let results: Prospect[] = [];
+    const prospects = db.prepare("SELECT * FROM prospects").all() as Prospect[];
+    const filtered = prospects.filter((prospect: Prospect) => {
       const matchesQuery =
         !query ||
         prospect.name?.toLowerCase().includes(query.toString().toLowerCase()) ||
-        prospect.description
-          ?.toLowerCase()
-          .includes(query.toString().toLowerCase()) ||
-        prospect.category
-          ?.toLowerCase()
-          .includes(query.toString().toLowerCase());
+        prospect.description?.toLowerCase().includes(query.toString().toLowerCase()) ||
+        prospect.category?.toLowerCase().includes(query.toString().toLowerCase());
       const matchesLocation =
         !location ||
-        prospect.location
-          ?.toLowerCase()
-          .includes(location.toString().toLowerCase());
+        (prospect as any).location?.toLowerCase().includes(location.toString().toLowerCase());
       const matchesIndustry =
         !industry ||
-        prospect.category
-          ?.toLowerCase()
-          .includes(industry.toString().toLowerCase());
+        prospect.category?.toLowerCase().includes(industry.toString().toLowerCase());
       const matchesSize = !companySize || prospect.companySize === companySize;
       return matchesQuery && matchesLocation && matchesIndustry && matchesSize;
     });
     results = filtered.slice(0, parseInt(limit.toString()));
-
     res.json({
       status: "success",
       results,
@@ -607,17 +549,16 @@ app.get("/search-businesses", async (req, res) => {
 app.get("/business/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const prospects = readProspectsJSON();
-    const business = prospects.find((p: any) => p.email === id || p.name === id);
-    if (business) {
+    const prospect = db.prepare("SELECT * FROM prospects WHERE email = ? OR name = ?").get(id, id) as Prospect | undefined;
+    if (prospect) {
       res.json({
         status: "success",
         business: {
-          ...business,
-          websiteData: business.title && business.description ? {
-            title: business.title,
-            description: business.description,
-            category: business.category
+          ...prospect,
+          websiteData: prospect.title && prospect.description ? {
+            title: prospect.title,
+            description: prospect.description,
+            category: prospect.category
           } : null
         }
       });
@@ -633,20 +574,21 @@ app.get("/business/:id", async (req, res) => {
 app.post("/bulk-outreach", async (req, res) => {
   try {
     const { businessIds, messageType = "email", customMessage } = req.body;
-
     if (!businessIds || !Array.isArray(businessIds)) {
       return res.status(400).json({ error: "businessIds array is required" });
     }
-
     const results: any[] = [];
-    const prospects: any[] = readProspectsJSON();
+    const prospects = db.prepare("SELECT * FROM prospects").all() as Prospect[];
     for (const id of businessIds) {
-      const business = prospects.find((p: any) => p.email === id || p.name === id);
+      const business = prospects.find((p: Prospect) => p.email === id || p.name === id);
       if (business) {
         try {
           if (messageType === "email" && business.email) {
-            // Use existing email sender
-            const emailResult = await sendEmail(business.email);
+            const emailResult = await sendEmail({
+              to: business.email,
+              subject: customMessage?.slice(0, 50) || "Outreach",
+              body: customMessage || "Hello, this is an outreach message."
+            });
             results.push({
               business: business.name,
               email: business.email,
@@ -656,7 +598,6 @@ app.post("/bulk-outreach", async (req, res) => {
               timestamp: new Date().toISOString(),
             });
           } else if (messageType === "whatsapp" && business.phone) {
-            // TODO: Implement WhatsApp integration
             results.push({
               business: business.name,
               phone: business.phone,
@@ -675,9 +616,7 @@ app.post("/bulk-outreach", async (req, res) => {
         }
       }
     }
-    // Save results to results.json
-    const prevResults = readResultsJSON();
-    writeResultsJSON([...prevResults, ...results]);
+    // Save results to results table (not shown here)
     res.json({
       status: "success",
       results,
@@ -710,56 +649,16 @@ app.get("/analytics", async (req, res) => {
       topIndustries: [],
       topLocations: [],
     };
-
-    // Count businesses
-    if (fs.existsSync("scripts/prospects.csv")) {
-      const prospects: any[] = [];
-      fs.createReadStream("scripts/prospects.csv")
-        .pipe(parse({ columns: true, trim: true }))
-        .on("data", (row) => prospects.push(row))
-        .on("end", () => {
-          analytics.totalBusinesses = prospects.length;
-
-          // Calculate top industries
-          const industries: { [key: string]: number } = prospects.reduce(
-            (acc, p) => {
-              acc[p.category] = (acc[p.category] || 0) + 1;
-              return acc;
-            },
-            {} as { [key: string]: number }
-          );
-          analytics.topIndustries = Object.entries(industries)
-            .sort(([, a], [, b]) => (b as number) - (a as number))
-            .slice(0, 5)
-            .map(([industry, count]) => ({ industry, count: count as number }));
-        });
-    }
-
-    // Count people
-    if (fs.existsSync("scripts/persons.csv")) {
-      const persons: any[] = [];
-      fs.createReadStream("scripts/persons.csv")
-        .pipe(parse({ columns: true, trim: true }))
-        .on("data", (row) => persons.push(row))
-        .on("end", () => {
-          analytics.totalPeople = persons.length;
-        });
-    }
-
-    // Count outreach results
-    if (fs.existsSync("results.csv")) {
-      const results: any[] = [];
-      fs.createReadStream("results.csv")
-        .pipe(parse({ columns: true, trim: true }))
-        .on("data", (row) => results.push(row))
-        .on("end", () => {
-          analytics.outreachSent = results.length;
-          const successful = results.filter((r) => r.status === "sent").length;
-          analytics.responseRate =
-            results.length > 0 ? (successful / results.length) * 100 : 0;
-        });
-    }
-
+    const prospects = db.prepare("SELECT * FROM prospects").all() as Prospect[];
+    analytics.totalBusinesses = prospects.length;
+    const industries: { [key: string]: number } = prospects.reduce((acc: { [key: string]: number }, p: Prospect) => {
+      if (p.category) acc[p.category] = (acc[p.category] || 0) + 1;
+      return acc;
+    }, {});
+    analytics.topIndustries = Object.entries(industries)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+      .slice(0, 5)
+      .map(([industry, count]) => ({ industry, count: count as number }));
     res.json({
       status: "success",
       analytics,
@@ -858,10 +757,6 @@ app.get("/firecrawl-status", async (req, res) => {
   }
 });
 
-function writeResultsJSON(results: any[]) {
-  fs.writeFileSync(RESULTS_JSON, JSON.stringify(results, null, 2), "utf-8");
-}
-
 const PORT = process.env.PORT || 3002;
 
 // Only start the server if this file is run directly
@@ -941,7 +836,7 @@ app.get("/auth/google/callback", async (req, res) => {
   userTokens[userEmail] = tokens;
   res.redirect(
     process.env.NODE_ENV === "production"
-      ? "https://ai-reachout-ui.vercel.app/settings?gmail=connected"
+      ? "https://mojtabai.vercel.app/settings?gmail=connected"
       : "http://localhost:3000/settings?gmail=connected"
   );
 });
