@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import jwt_decode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 
 export default function SettingsPage() {
   const [email, setEmail] = useState("");
@@ -21,7 +21,7 @@ export default function SettingsPage() {
       fetchGmailStatus(token);
       // Try to decode profile info from JWT
       try {
-        const decoded = jwt_decode(token);
+        const decoded = jwtDecode(token);
         setProfile({
           email: decoded.email,
           name: decoded.name,
