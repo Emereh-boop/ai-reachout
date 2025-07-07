@@ -1,0 +1,24 @@
+[
+  {
+    "business": "MidiatorAI",
+    "email": "abuashiaemereh@gmail.com",
+    "status": "failed",
+    "error": {
+      "code": "EENVELOPE",
+      "command": "API"
+    },
+    "subject": "Hi {{name}},\n\nI love what {{company}} is doing in ",
+    "timestamp": "2025-07-07T06:49:18.292Z"
+  },
+  {
+    "business": "MidiatorAI",
+    "email": "abuashiaemereh@gmail.com",
+    "status": "failed",
+    "error": {
+      "code": "EENVELOPE",
+      "command": "API"
+    },
+    "subject": "Hi {{name}},\n\nI love what {{company}} is doing in ",
+    "timestamp": "2025-07-07T06:49:30.607Z"
+  }
+]
